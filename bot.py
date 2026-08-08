@@ -126,34 +126,85 @@ async def ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import requests
+    from datetime import date
 
+    user_id = update.effective_user.id
+    today = str(date.today())
+
+    question_count, last_date, premium_until = get_user(user_id)
+
+    # Yangi kun boshlandi
+    if last_date != today:
+        question_count = 0
+        update_question_count(user_id, 0, today)
+
+    # Premium faol bo'lsa — limit yo'q
+    if premium_until:
+        if str(premium_until) >= today:
+            premium_active = True
+        else:
+            premium_active = False
+    else:
+        premium_active = False
+
+    # Bepul foydalanuvchi uchun kunlik 5 ta limit
+    if not premium_active and question_count >= 5:
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "uz":
+            text = (
+                "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
+                "⭐ Premium olsangiz, AI'dan limitsiz foydalanishingiz mumkin."
+            )
+        elif lang == "en":
+            text = (
+                "⛔ Your free AI limit for today is over.\n\n"
+                "⭐ Get Premium for unlimited AI access."
+            )
+        else:
+            text = (
+                "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
+                "⭐ С Premium доступ к AI будет без ограничений."
+            )
+
+        await update.message.reply_text(text)
+        return
+
+    # Savolni olamiz
     user_question = update.message.text
 
-    await update.message.reply_text("⏳ AI o'ylayapti...")
+    # Premium bo'lmasa, savol sonini oshiramiz
+    if not premium_active:
+        question_count += 1
+        update_question_count(user_id, question_count, today)
+
+    await update.message.reply_text(
+        "⏳ AI o'ylayapti..."
+    )
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+
     headers = {
         "x-goog-api-key": GEMINI_API_KEY,
         "Content-Type": "application/json"
     }
 
     data = {
-    "contents": [
-        {
-            "parts": [
-                {
-                    "text": user_question
-                }
-            ]
-        }
-    ],
-    "generationConfig": {
-        "thinkingConfig": {
-            "thinkingLevel": "minimal"
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": user_question
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "thinkingConfig": {
+                "thinkingLevel": "minimal"
+            }
         }
     }
-}
-
 
     try:
         response = requests.post(
@@ -169,7 +220,15 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
-            await update.message.reply_text(answer)
+
+            if premium_active:
+                await update.message.reply_text(answer)
+            else:
+                await update.message.reply_text(
+                    f"{answer}\n\n"
+                    f"📊 Bugungi bepul savollar: {question_count}/5"
+                )
+
         else:
             await update.message.reply_text(
                 f"❌ Xato: {result}"
@@ -178,7 +237,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(
             f"❌ Xato: {e}"
-        )
+            )
 
 app = Application.builder().token(TOKEN).build()
 
