@@ -9,19 +9,15 @@ from telegram.ext import (
 
 from dotenv import load_dotenv
 import os
+import sqlite3
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-import sqlite3
-
-DB_NAME = "users.db"
-
-
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -37,8 +33,10 @@ def init_db():
     conn.close()
 
 
+init_db()
+
 def get_user(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
     cursor.execute(
@@ -46,44 +44,31 @@ def get_user(user_id):
         (user_id,)
     )
 
-    row = cursor.fetchone()
+    user = cursor.fetchone()
 
-    if row is None:
+    if user is None:
         cursor.execute(
-            """
-            INSERT INTO users
-            (user_id, question_count, last_date, premium_until)
-            VALUES (?, 0, '', '')
-            """,
-            (user_id,)
+            "INSERT INTO users (user_id, question_count, last_date) VALUES (?, 0, ?)",
+            (user_id, "")
         )
         conn.commit()
-        conn.close()
-
-        return 0, "", ""
+        user = (0, "", None)
 
     conn.close()
-    return row
+    return user
 
 
-def update_question_count(user_id, question_count, last_date):
-    conn = sqlite3.connect(DB_NAME)
+def update_question_count(user_id, count, date):
+    conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
     cursor.execute(
-        """
-        UPDATE users
-        SET question_count = ?, last_date = ?
-        WHERE user_id = ?
-        """,
-        (question_count, last_date, user_id)
+        "UPDATE users SET question_count = ?, last_date = ? WHERE user_id = ?",
+        (count, date, user_id)
     )
 
     conn.commit()
     conn.close()
-
-
-init_db()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -194,6 +179,89 @@ async def ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
 
+async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        text = (
+            "⭐ STUDENT AI PREMIUM\n\n"
+            "🚀 30 kunlik Premium\n"
+            "♾️ AI savollariga limit yo'q\n"
+            "📄 Hujjatlar bilan ishlash\n"
+            "💻 Dasturlash yordamchisi\n"
+            "🌍 Tarjimon imkoniyatlari\n\n"
+            "💳 Premiumni sotib olish uchun quyidagi tugmani bosing."
+        )
+
+    elif lang == "en":
+        text = (
+            "⭐ STUDENT AI PREMIUM\n\n"
+            "🚀 30-day Premium\n"
+            "♾️ Unlimited AI questions\n"
+            "📄 Document tools\n"
+            "💻 Programming assistant\n"
+            "🌍 Translation features\n\n"
+            "💳 Press the button below to purchase Premium."
+        )
+
+    else:
+        text = (
+            "⭐ STUDENT AI PREMIUM\n\n"
+            "🚀 Premium на 30 дней\n"
+            "♾️ Безлимитные вопросы AI\n"
+            "📄 Работа с документами\n"
+            "💻 Помощник по программированию\n"
+            "🌍 Переводчик\n\n"
+            "💳 Нажмите кнопку ниже для покупки Premium."
+        )
+
+    keyboard = [
+        ["💳 Premium sotib olish"],
+        ["⬅️ Orqaga"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        text,
+        reply_markup=reply_markup
+    )
+
+async def premium_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        text = (
+            "💳 Premium sotib olish\n\n"
+            "⭐ Student AI Premium — 30 kun\n"
+            "♾️ AI savollariga limit yo'q\n\n"
+            "💰 Narx: tez orada belgilanadi.\n\n"
+            "To'lov tizimi hali ulanmoqda."
+        )
+
+    elif lang == "en":
+        text = (
+            "💳 Buy Premium\n\n"
+            "⭐ Student AI Premium — 30 days\n"
+            "♾️ Unlimited AI questions\n\n"
+            "💰 Price: coming soon.\n\n"
+            "Payment system is being connected."
+        )
+
+    else:
+        text = (
+            "💳 Покупка Premium\n\n"
+            "⭐ Student AI Premium — 30 дней\n"
+            "♾️ Безлимитные вопросы AI\n\n"
+            "💰 Цена: скоро будет установлена.\n\n"
+            "Платёжная система подключается."
+        )
+
+    await update.message.reply_text(text)
+
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import requests
     from datetime import date
@@ -203,53 +271,47 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     question_count, last_date, premium_until = get_user(user_id)
 
-    # Yangi kun boshlandi
+    # Yangi kun bo'lsa, bepul limitni yangilash
     if last_date != today:
         question_count = 0
         update_question_count(user_id, 0, today)
 
-    # Premium faol bo'lsa — limit yo'q
+    # Premium tekshiruvi hozircha keyingi bosqich uchun
     if premium_until:
-        if str(premium_until) >= today:
-            premium_active = True
-        else:
-            premium_active = False
-    else:
-        premium_active = False
+        pass
 
-    # Bepul foydalanuvchi uchun kunlik 5 ta limit
-    if not premium_active and question_count >= 5:
+    # Bepul limit: kuniga 5 ta savol
+    if question_count >= 5:
         lang = context.user_data.get("language", "uz")
 
         if lang == "uz":
             text = (
                 "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
-                "⭐ Premium olsangiz, AI'dan limitsiz foydalanishingiz mumkin."
+                "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
             )
         elif lang == "en":
             text = (
                 "⛔ Your free AI limit for today is over.\n\n"
-                "⭐ Get Premium for unlimited AI access."
+                "⭐ You can use more with Premium."
             )
         else:
             text = (
                 "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
-                "⭐ С Premium доступ к AI будет без ограничений."
+                "⭐ Больше возможностей доступно с Premium."
             )
 
         await update.message.reply_text(text)
         return
 
-    # Savolni olamiz
     user_question = update.message.text
 
-    # Premium bo'lmasa, savol sonini oshiramiz
-    if not premium_active:
-        question_count += 1
-        update_question_count(user_id, question_count, today)
+    # Savol yuborilishidan oldin limitni 1 taga oshiramiz
+    question_count += 1
+    update_question_count(user_id, question_count, today)
 
     await update.message.reply_text(
-        "⏳ AI o'ylayapti..."
+        f"⏳ AI o'ylayapti...\n\n"
+        f"📊 Bugungi bepul savollar: {question_count}/5"
     )
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
@@ -290,15 +352,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
-
-            if premium_active:
-                await update.message.reply_text(answer)
-            else:
-                await update.message.reply_text(
-                    f"{answer}\n\n"
-                    f"📊 Bugungi bepul savollar: {question_count}/5"
-                )
-
+            await update.message.reply_text(answer)
         else:
             await update.message.reply_text(
                 f"❌ Xato: {result}"
@@ -307,11 +361,26 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(
             f"❌ Xato: {e}"
-            )
+        )
+
 
 app = Application.builder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
+
+app.add_handler(
+    MessageHandler(
+        filters.Regex("^⭐ Premium$"),
+        premium
+    )
+)
+
+app.add_handler(
+    MessageHandler(
+        filters.Regex("^💳 Premium sotib olish$"),
+        premium_buy
+    )
+)
 
 app.add_handler(
     MessageHandler(
