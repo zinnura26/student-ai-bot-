@@ -15,6 +15,76 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+import sqlite3
+
+DB_NAME = "users.db"
+
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            question_count INTEGER DEFAULT 0,
+            last_date TEXT,
+            premium_until TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def get_user(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT question_count, last_date, premium_until FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            """
+            INSERT INTO users
+            (user_id, question_count, last_date, premium_until)
+            VALUES (?, 0, '', '')
+            """,
+            (user_id,)
+        )
+        conn.commit()
+        conn.close()
+
+        return 0, "", ""
+
+    conn.close()
+    return row
+
+
+def update_question_count(user_id, question_count, last_date):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET question_count = ?, last_date = ?
+        WHERE user_id = ?
+        """,
+        (question_count, last_date, user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         ["🇺🇿 O'zbekcha"],
