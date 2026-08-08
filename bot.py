@@ -235,30 +235,44 @@ async def premium_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if lang == "uz":
         text = (
-            "💳 Premium sotib olish\n\n"
-            "⭐ Student AI Premium — 30 kun\n"
-            "♾️ AI savollariga limit yo'q\n\n"
-            "💰 Narx: tez orada belgilanadi.\n\n"
-            "To'lov tizimi hali ulanmoqda."
+            "💳 STUDENT AI PREMIUM\n\n"
+            "⭐ Premium — 30 kun\n"
+            "♾️ AI savollariga limit yo'q\n"
+            "📄 Hujjat va PDF tahlili\n"
+            "🖼️ Rasm tahlili\n"
+            "💻 Dasturlash yordamchisi\n"
+            "🌍 Kengaytirilgan tarjima\n\n"
+            "💰 Narx: 29 000 so'm / 30 kun\n\n"
+            "🔐 To'lov tizimi tez orada ulanadi."
         )
 
     elif lang == "en":
         text = (
-            "💳 Buy Premium\n\n"
-            "⭐ Student AI Premium — 30 days\n"
-            "♾️ Unlimited AI questions\n\n"
-            "💰 Price: coming soon.\n\n"
-            "Payment system is being connected."
+            "💳 STUDENT AI PREMIUM\n\n"
+            "⭐ Premium — 30 days\n"
+            "♾️ Unlimited AI questions\n"
+            "📄 Document and PDF analysis\n"
+            "🖼️ Image analysis\n"
+            "💻 Programming assistant\n"
+            "🌍 Advanced translation\n\n"
+            "💰 Price: 29,000 UZS / 30 days\n\n"
+            "🔐 Payment system will be connected soon."
         )
 
     else:
         text = (
-            "💳 Покупка Premium\n\n"
-            "⭐ Student AI Premium — 30 дней\n"
-            "♾️ Безлимитные вопросы AI\n\n"
-            "💰 Цена: скоро будет установлена.\n\n"
-            "Платёжная система подключается."
+            "💳 STUDENT AI PREMIUM\n\n"
+            "⭐ Premium — 30 дней\n"
+            "♾️ Безлимитные вопросы AI\n"
+            "📄 Анализ документов и PDF\n"
+            "🖼️ Анализ изображений\n"
+            "💻 Помощник по программированию\n"
+            "🌍 Расширенный перевод\n\n"
+            "💰 Цена: 29 000 сум / 30 дней\n\n"
+            "🔐 Платёжная система скоро будет подключена."
         )
+
+    await update.message.reply_text(text)
 
     await update.message.reply_text(text)
 
