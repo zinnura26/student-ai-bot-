@@ -70,6 +70,24 @@ def update_question_count(user_id, count, date):
     conn.commit()
     conn.close()
 
+def activate_premium(user_id):
+    from datetime import date, timedelta
+
+    premium_until = date.today() + timedelta(days=30)
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE users SET premium_until = ? WHERE user_id = ?",
+        (str(premium_until), user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return str(premium_until)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         ["🇺🇿 O'zbekcha"],
@@ -285,47 +303,60 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     question_count, last_date, premium_until = get_user(user_id)
 
-    # Yangi kun bo'lsa, bepul limitni yangilash
-    if last_date != today:
-        question_count = 0
-        update_question_count(user_id, 0, today)
+    # Premium hali faolmi?
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
 
-    # Premium tekshiruvi hozircha keyingi bosqich uchun
-    if premium_until:
-        pass
+    # Agar Premium faol bo'lmasa, bepul limitni boshqaramiz
+    if not premium_active:
 
-    # Bepul limit: kuniga 5 ta savol
-    if question_count >= 5:
-        lang = context.user_data.get("language", "uz")
+        # Yangi kun bo'lsa, bepul limitni yangilash
+        if last_date != today:
+            question_count = 0
+            update_question_count(user_id, 0, today)
 
-        if lang == "uz":
-            text = (
-                "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
-                "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
-            )
-        elif lang == "en":
-            text = (
-                "⛔ Your free AI limit for today is over.\n\n"
-                "⭐ You can use more with Premium."
-            )
-        else:
-            text = (
-                "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
-                "⭐ Больше возможностей доступно с Premium."
-            )
+        # Bepul limit: kuniga 5 ta savol
+        if question_count >= 5:
+            lang = context.user_data.get("language", "uz")
 
-        await update.message.reply_text(text)
-        return
+            if lang == "uz":
+                text = (
+                    "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
+                    "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
+                )
+
+            elif lang == "en":
+                text = (
+                    "⛔ Your free AI limit for today is over.\n\n"
+                    "⭐ You can use more with Premium."
+                )
+
+            else:
+                text = (
+                    "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
+                    "⭐ Больше возможностей доступно с Premium."
+                )
+
+            await update.message.reply_text(text)
+            return
 
     user_question = update.message.text
 
-    # Savol yuborilishidan oldin limitni 1 taga oshiramiz
-    question_count += 1
-    update_question_count(user_id, question_count, today)
+    # Faqat bepul foydalanuvchining limitini oshiramiz
+    if not premium_active:
+        question_count += 1
+        update_question_count(user_id, question_count, today)
+
+        limit_text = f"📊 Bugungi bepul savollar: {question_count}/5"
+    else:
+        limit_text = "⭐ Premium — AI savollariga limit yo'q"
 
     await update.message.reply_text(
         f"⏳ AI o'ylayapti...\n\n"
-        f"📊 Bugungi bepul savollar: {question_count}/5"
+        f"{limit_text}"
     )
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
@@ -361,7 +392,6 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         result = response.json()
-
         print(result)
 
         if "candidates" in result:
@@ -376,7 +406,6 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"❌ Xato: {e}"
         )
-
 
 app = Application.builder().token(TOKEN).build()
 
