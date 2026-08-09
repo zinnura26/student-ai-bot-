@@ -1,4 +1,9 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -123,10 +128,11 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def uz_menu(update: Update):
     keyboard = [
         ["🤖 AI yordamchi", "🌍 Tarjimon"],
-        ["📄 Hujjat", "💻 Dasturlash"],
-        ["📚 Darslar", "🧮 Kalkulyator"],
+        ["🧮 Kalkulyator", "📄 PDF / Hujjat"],
+        ["📝 Referat", "💻 Dasturlash"],
         ["⚙️ Sozlamalar", "⭐ Premium"],
     ]
+
     reply_markup = ReplyKeyboardMarkup(
         keyboard,
         resize_keyboard=True
@@ -134,15 +140,17 @@ async def uz_menu(update: Update):
 
     await update.message.reply_text(
         "👋 Assalomu alaykum!\n\n"
-        "Student AI ga xush kelibsiz.\n\n"
+        "🤖 Student AI ga xush kelibsiz!\n\n"
         "👇 Kerakli bo'limni tanlang:",
         reply_markup=reply_markup
     )
+
+
 async def en_menu(update: Update):
     keyboard = [
         ["🤖 AI Assistant", "🌍 Translator"],
-        ["📄 Documents", "💻 Programming"],
-        ["📚 Study", "🧮 Calculator"],
+        ["🧮 Calculator", "📄 PDF / Documents"],
+        ["📝 Essay / Report", "💻 Programming"],
         ["⚙️ Settings", "⭐ Premium"],
     ]
 
@@ -153,14 +161,17 @@ async def en_menu(update: Update):
 
     await update.message.reply_text(
         "👋 Welcome to Student AI!\n\n"
-        "👇 Please choose a section:",
+        "🤖 Your AI assistant for study and everyday tasks.\n\n"
+        "👇 Choose a section:",
         reply_markup=reply_markup
     )
+
+
 async def ru_menu(update: Update):
     keyboard = [
         ["🤖 AI Помощник", "🌍 Переводчик"],
-        ["📄 Документы", "💻 Программирование"],
-        ["📚 Учёба", "🧮 Калькулятор"],
+        ["🧮 Калькулятор", "📄 PDF / Документы"],
+        ["📝 Реферат", "💻 Программирование"],
         ["⚙️ Настройки", "⭐ Premium"],
     ]
 
@@ -171,9 +182,11 @@ async def ru_menu(update: Update):
 
     await update.message.reply_text(
         "👋 Добро пожаловать в Student AI!\n\n"
+        "🤖 Ваш AI-помощник для учёбы и повседневных задач.\n\n"
         "👇 Выберите нужный раздел:",
         reply_markup=reply_markup
     )
+
 async def ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
 
@@ -292,9 +305,287 @@ async def premium_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
 
-    await update.message.reply_text(text)
+async def translator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        text = (
+            "🌍 TARJIMON\n\n"
+            "Qaysi tilga tarjima qilamiz?"
+        )
+        keyboard = [
+            ["🔤 → English", "🔤 → Русский"],
+            ["🔤 → O'zbekcha", "⬅️ Orqaga"]
+        ]
+
+    elif lang == "en":
+        text = (
+            "🌍 TRANSLATOR\n\n"
+            "Which language should we translate into?"
+        )
+        keyboard = [
+            ["🔤 → Uzbek", "🔤 → Russian"],
+            ["🔤 → English", "⬅️ Back"]
+        ]
+
+    else:
+        text = (
+            "🌍 ПЕРЕВОДЧИК\n\n"
+            "На какой язык перевести?"
+        )
+        keyboard = [
+            ["🔤 → Uzbek", "🔤 → English"],
+            ["🔤 → Russian", "⬅️ Назад"]
+        ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        text,
+        reply_markup=reply_markup
+    )
+
+async def translator_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("🔥 TRANSLATOR_LANGUAGE ISHLADI:", update.message.text)
+
+    text = update.message.text
+    if text in ["🔤 → English", "🔤 → Inglizcha"]:
+        context.user_data["translate_to"] = "English"
+
+    elif text in ["🔤 → Русский", "🔤 → Russian", "🔤 → Ruscha"]:
+        context.user_data["translate_to"] = "Russian"
+
+    elif text in ["🔤 → O'zbekcha", "🔤 → Uzbek", "🔤 → O'zbek"]:
+        context.user_data["translate_to"] = "Uzbek"
+
+    elif text in ["⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"]:
+        context.user_data["translator_mode"] = False
+        context.user_data.pop("translate_to", None)
+
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
+        return
+
+    else:
+        return
+
+    context.user_data["translator_mode"] = True
+
+    reply_markup = ReplyKeyboardMarkup(
+        [["⬅️ Orqaga"]],
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        f"✅ Tarjima tili: {context.user_data['translate_to']}\n\n"
+        "📝 Endi tarjima qilinadigan matnni yuboring.",
+        reply_markup=reply_markup
+    )
+
+async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    lang = context.user_data.get("language", "uz")
+
+    # ⬅️ Orqaga
+    if text in ["⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"]:
+        context.user_data["translator_mode"] = False
+        context.user_data.pop("translate_to", None)
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
+        return
+
+    # Tarjima rejimi yoqilmagan bo‘lsa
+    if not context.user_data.get("translator_mode"):
+        return
+
+    target_language = context.user_data.get("translate_to")
+
+    if not target_language:
+        await update.message.reply_text(
+            "⚠️ Avval tarjima tilini tanlang."
+        )
+        return
+
+    import requests
+    from datetime import date
+
+    user_id = update.effective_user.id
+    today = str(date.today())
+
+    # Foydalanuvchi ma'lumotlarini olish
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT translator_count, translator_last_date, premium_until "
+        "FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+
+    user = cursor.fetchone()
+
+    if user is None:
+        cursor.execute(
+            "INSERT INTO users "
+            "(user_id, translator_count, translator_last_date) "
+            "VALUES (?, 0, ?)",
+            (user_id, today)
+        )
+        conn.commit()
+
+        translator_count = 0
+        translator_last_date = today
+        premium_until = None
+    else:
+        translator_count, translator_last_date, premium_until = user
+
+    # Yangi kun bo‘lsa limitni 0 dan boshlash
+    if translator_last_date != today:
+        translator_count = 0
+
+        cursor.execute(
+            "UPDATE users SET translator_count = 0, "
+            "translator_last_date = ? WHERE user_id = ?",
+            (today, user_id)
+        )
+        conn.commit()
+
+    conn.close()
+
+    # Premium holatini tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    # 🆓 Bepul foydalanuvchi uchun 5 ta limit
+    if not premium_active and translator_count >= 5:
+
+        if lang == "uz":
+            limit_text = (
+                "⛔ Bugungi bepul tarjima limitingiz tugadi.\n\n"
+                "⭐ Premium orqali tarjimondan cheksiz foydalanishingiz mumkin."
+            )
+        elif lang == "en":
+            limit_text = (
+                "⛔ Your free translation limit for today is over.\n\n"
+                "⭐ Premium gives you unlimited translation."
+            )
+        else:
+            limit_text = (
+                "⛔ Ваш бесплатный лимит переводов на сегодня закончился.\n\n"
+                "⭐ Premium даёт безлимитный перевод."
+            )
+
+        await update.message.reply_text(limit_text)
+        return
+
+    user_text = text
+
+    prompt = (
+        f"Translate the following text into {target_language}. "
+        "Return only the translation, without explanations.\n\n"
+        f"Text:\n{user_text}"
+    )
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        if "candidates" in result:
+            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+
+            # Faqat bepul foydalanuvchining tarjima limitini oshirish
+            if not premium_active:
+                translator_count += 1
+
+                conn = sqlite3.connect("student_ai.db")
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "UPDATE users SET translator_count = ?, "
+                    "translator_last_date = ? WHERE user_id = ?",
+                    (translator_count, today, user_id)
+                )
+
+                conn.commit()
+                conn.close()
+
+                limit_text = (
+                    f"\n\n📊 Bugungi bepul tarjimalar: "
+                    f"{translator_count}/5"
+                )
+            else:
+                limit_text = (
+                    "\n\n⭐ Premium — tarjima limiti yo‘q"
+                )
+
+            await update.message.reply_text(
+                f"🌍 Tarjima:\n\n{answer}{limit_text}"
+            )
+
+        else:
+            await update.message.reply_text(
+                f"❌ Tarjima xatosi: {result}"
+            )
+
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Xato: {e}"
+        )
 
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("translator_mode"):
+        return
+
+    text = update.message.text
+
+    if text.startswith("🔤 →"):
+        return
+
     import requests
     from datetime import date
 
@@ -409,43 +700,120 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = Application.builder().token(TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
+
+async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    # ⭐ Premium
+    if text == "⭐ Premium":
+        await premium(update, context)
+        return
+
+    # 💳 Premium sotib olish
+    if text == "💳 Premium sotib olish":
+        await premium_buy(update, context)
+        return
+
+    # 🤖 AI yordamchi
+    if text in [
+        "🤖 AI yordamchi",
+        "🤖 AI Assistant",
+        "🤖 AI Помощник"
+    ]:
+        context.user_data["ai_mode"] = True
+        context.user_data["translator_mode"] = False
+
+        await ai_assistant(update, context)
+        return
+
+    # 🌍 Tarjimon
+    if text in [
+        "🌍 Tarjimon",
+        "🌍 Translator",
+        "🌍 Переводчик"
+    ]:
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        await translator(update, context)
+        return
+
+
+    # 🔤 Tarjima tilini tanlash
+    if text in [
+        "🔤 → English",
+        "🔤 → Inglizcha",
+        "🔤 → Русский",
+        "🔤 → Russian",
+        "🔤 → Ruscha",
+        "🔤 → O'zbekcha",
+        "🔤 → Uzbek",
+        "🔤 → O'zbek"
+    ]:
+        context.user_data["ai_mode"] = False
+        await translator_chat(update, context)
+        return
+
+    # ⬅️ Orqaga
+    if text in [
+        "⬅️ Orqaga",
+        "⬅️ Back",
+        "⬅️ Назад"
+    ]:
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
+        return
+
+    # 🇺🇿🇬🇧🇷🇺 Til tanlash
+    if text in [
+        "🇺🇿 O'zbekcha",
+        "🇬🇧 English",
+        "🇷🇺 Русский"
+    ]:
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        await language(update, context)
+        return
+
+    # 🌍 Agar tarjimon rejimi yoqilgan bo'lsa
+    if context.user_data.get("translator_mode"):
+        await translator_chat(update, context)
+        return
+
+    # 🤖 Agar AI rejimi yoqilgan bo'lsa
+    if context.user_data.get("ai_mode"):
+        await ai_chat(update, context)
+        return
+
+    # Hech qanday rejim tanlanmagan bo'lsa
+    await update.message.reply_text(
+        "👇 Avval menyudan kerakli bo'limni tanlang."
+    )
+
 
 app.add_handler(
-    MessageHandler(
-        filters.Regex("^⭐ Premium$"),
-        premium
-    )
-)
-
-app.add_handler(
-    MessageHandler(
-        filters.Regex("^💳 Premium sotib olish$"),
-        premium_buy
-    )
-)
-
-app.add_handler(
-    MessageHandler(
-        filters.Regex("^(🤖 AI yordamchi|🤖 AI Assistant|🤖 AI Помощник)$"),
-        ai_assistant
-    )
-)
-
-app.add_handler(
-    MessageHandler(
-        filters.Regex("^(🇺🇿 O'zbekcha|🇬🇧 English|🇷🇺 Русский)$"),
-        language
-    )
+    CommandHandler("start", start)
 )
 
 app.add_handler(
     MessageHandler(
         filters.TEXT & ~filters.COMMAND,
-        ai_chat
+        text_router
     )
 )
 
 print("✅ Student AI ishga tushdi...")
 
 app.run_polling()
+
