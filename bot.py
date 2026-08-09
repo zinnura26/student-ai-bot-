@@ -34,10 +34,23 @@ def init_db():
         )
     """)
 
+    # Translator uchun yangi ustunlar
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN translator_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN translator_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
-
-
 init_db()
 
 def get_user(user_id):
