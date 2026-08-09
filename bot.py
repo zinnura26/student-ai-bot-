@@ -223,6 +223,134 @@ async def ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
 
+async def programming(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        text = (
+            "💻 DASTURLASH YORDAMCHISI\n\n"
+            "🐍 Python, algoritmlar, kod yozish va xatolarni tuzatishda yordam beraman.\n\n"
+            "📝 Masalangizni yozing."
+        )
+
+    elif lang == "en":
+        text = (
+            "💻 PROGRAMMING ASSISTANT\n\n"
+            "🐍 I can help with Python, algorithms, coding and debugging.\n\n"
+            "📝 Write your programming question."
+        )
+
+    else:
+        text = (
+            "💻 ПОМОЩНИК ПО ПРОГРАММИРОВАНИЮ\n\n"
+            "🐍 Помогу с Python, алгоритмами, кодом и исправлением ошибок.\n\n"
+            "📝 Напишите свой вопрос."
+        )
+
+    reply_markup = ReplyKeyboardMarkup(
+        [["⬅️ Orqaga"]],
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        text,
+        reply_markup=reply_markup
+    )
+
+async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    lang = context.user_data.get("language", "uz")
+
+    # ⬅️ Orqaga
+    if text in ["⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"]:
+        context.user_data["programming_mode"] = False
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
+        return
+
+    user_question = text
+
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI dasturlash yordamchisisan. "
+            "Foydalanuvchining dasturlash savoliga o'zbek tilida "
+            "tushunarli javob ber. Kerak bo'lsa kod yoz. "
+            "Koddagi xatolarni ham tushuntir.\n\n"
+            f"Foydalanuvchi savoli:\n{user_question}"
+        )
+
+    elif lang == "en":
+        prompt = (
+            "You are Student AI programming assistant. "
+            "Answer the user's programming question clearly. "
+            "Provide code when needed and explain errors.\n\n"
+            f"User question:\n{user_question}"
+        )
+
+    else:
+        prompt = (
+            "Ты помощник Student AI по программированию. "
+            "Отвечай понятно на русском языке. "
+            "При необходимости пиши код и объясняй ошибки.\n\n"
+            f"Вопрос пользователя:\n{user_question}"
+        )
+
+    await update.message.reply_text("⏳ Kodni tahlil qilyapman...")
+
+    import requests
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+        print("🔍 PROGRAMMING GEMINI:", result)
+
+        if "candidates" in result:
+            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+
+            await update.message.reply_text(answer)
+
+        else:
+            await update.message.reply_text(
+                f"❌ Dasturlash AI xatosi:\n{result}"
+            )
+
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Xato: {e}"
+        )
+
 async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
 
@@ -782,6 +910,20 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await ai_assistant(update, context)
         return
 
+    # 💻 Dasturlash
+    if text in [
+        "💻 Dasturlash",
+        "💻 Programming",
+        "💻 Программирование"
+    ]:
+        context.user_data["programming_mode"] = True
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        await programming(update, context)
+        return
+
+
     # 🌍 Tarjimon
     if text in [
         "🌍 Tarjimon",
@@ -850,6 +992,11 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🤖 Agar AI rejimi yoqilgan bo'lsa
     if context.user_data.get("ai_mode"):
         await ai_chat(update, context)
+        return
+
+    # 💻 Agar dasturlash rejimi yoqilgan bo'lsa
+    if context.user_data.get("programming_mode"):
+        await programming_chat(update, context)
         return
 
     # Hech qanday rejim tanlanmagan bo'lsa
