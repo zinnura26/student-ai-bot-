@@ -498,6 +498,78 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    lang = context.user_data.get("language", "uz")
+
+    # ⬅️ Orqaga
+    if text in ["⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"]:
+        context.user_data["calculator_mode"] = False
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
+        return
+
+    if not context.user_data.get("calculator_mode"):
+        return
+
+    try:
+        import ast
+        import operator as op
+
+        operators = {
+            ast.Add: op.add,
+            ast.Sub: op.sub,
+            ast.Mult: op.mul,
+            ast.Div: op.truediv,
+            ast.Pow: op.pow,
+            ast.Mod: op.mod,
+            ast.USub: op.neg,
+            ast.UAdd: op.pos,
+        }
+
+        def calculate(node):
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+
+            if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
+                return operators[type(node.op)](calculate(node.operand))
+
+            if isinstance(node, ast.BinOp) and type(node.op) in operators:
+                return operators[type(node.op)](
+                    calculate(node.left),
+                    calculate(node.right)
+                )
+
+            raise ValueError("Noto'g'ri matematik ifoda")
+
+        tree = ast.parse(text, mode="eval")
+        result = calculate(tree.body)
+
+        await update.message.reply_text(
+            f"🧮 Natija: {result}"
+        )
+
+    except ZeroDivisionError:
+        await update.message.reply_text(
+            "❌ Nolga bo‘lish mumkin emas."
+        )
+
+    except Exception:
+        if lang == "uz":
+            msg = "❌ Matematik ifodani tushunmadim.\nMasalan: 25 + 17"
+        elif lang == "en":
+            msg = "❌ I couldn't understand the expression.\nExample: 25 + 17"
+        else:
+            msg = "❌ Не удалось понять выражение.\nПример: 25 + 17"
+
+        await update.message.reply_text(msg)
+
 async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
 
@@ -1057,6 +1129,24 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await ai_assistant(update, context)
         return
 
+    # 🧮 Kalkulyator
+    if text in [
+        "🧮 Kalkulyator",
+        "🧮 Calculator",
+        "🧮 Калькулятор"
+    ]:
+        context.user_data["calculator_mode"] = True
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        await update.message.reply_text(
+            "🧮 Kalkulyator\n\n"
+            "Hisoblamoqchi bo‘lgan ifodangizni yuboring.\n"
+            "Masalan: 25 + 17"
+        )
+        return
+
     # 💻 Dasturlash
     if text in [
         "💻 Dasturlash",
@@ -1134,6 +1224,11 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🌍 Agar tarjimon rejimi yoqilgan bo'lsa
     if context.user_data.get("translator_mode"):
         await translator_chat(update, context)
+        return
+
+    # 🧮 Agar kalkulyator rejimi yoqilgan bo‘lsa
+    if context.user_data.get("calculator_mode"):
+        await calculator_chat(update, context)
         return
 
     # 🤖 Agar AI rejimi yoqilgan bo'lsa
