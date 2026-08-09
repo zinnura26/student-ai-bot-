@@ -396,6 +396,49 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     lang = context.user_data.get("language", "uz")
 
+    # 🔤 Tarjima tilini tanlash
+    if text in ["🔤 → English", "🔤 → Inglizcha"]:
+        context.user_data["translate_to"] = "English"
+        context.user_data["translator_mode"] = True
+
+        await update.message.reply_text(
+            "✅ Tarjima tili: English\n\n"
+            "📝 Endi tarjima qilinadigan matnni yuboring.",
+            reply_markup=ReplyKeyboardMarkup(
+                [["⬅️ Orqaga"]],
+                resize_keyboard=True
+            )
+        )
+        return
+
+    if text in ["🔤 → Русский", "🔤 → Russian", "🔤 → Ruscha"]:
+        context.user_data["translate_to"] = "Russian"
+        context.user_data["translator_mode"] = True
+
+        await update.message.reply_text(
+            "✅ Tarjima tili: Russian\n\n"
+            "📝 Endi tarjima qilinadigan matnni yuboring.",
+            reply_markup=ReplyKeyboardMarkup(
+                [["⬅️ Orqaga"]],
+                resize_keyboard=True
+            )
+        )
+        return
+
+    if text in ["🔤 → O'zbekcha", "🔤 → Uzbek", "🔤 → O'zbek"]:
+        context.user_data["translate_to"] = "Uzbek"
+        context.user_data["translator_mode"] = True
+
+        await update.message.reply_text(
+            "✅ Tarjima tili: Uzbek\n\n"
+            "📝 Endi tarjima qilinadigan matnni yuboring.",
+            reply_markup=ReplyKeyboardMarkup(
+                [["⬅️ Orqaga"]],
+                resize_keyboard=True
+            )
+        )
+        return
+
     # ⬅️ Orqaga
     if text in ["⬅️ Orqaga", "⬅️ Back", "⬅️ Назад"]:
         context.user_data["translator_mode"] = False
@@ -410,7 +453,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # Tarjima rejimi yoqilmagan bo‘lsa
+    # Tarjimon rejimi yoqilmagan bo‘lsa
     if not context.user_data.get("translator_mode"):
         return
 
@@ -455,7 +498,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         translator_count, translator_last_date, premium_until = user
 
-    # Yangi kun bo‘lsa limitni 0 dan boshlash
+    # Yangi kun
     if translator_last_date != today:
         translator_count = 0
 
@@ -468,14 +511,14 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn.close()
 
-    # Premium holatini tekshirish
+    # Premium
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # 🆓 Bepul foydalanuvchi uchun 5 ta limit
+    # 🆓 Bepul limit
     if not premium_active and translator_count >= 5:
 
         if lang == "uz":
@@ -538,7 +581,6 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
-            # Faqat bepul foydalanuvchining tarjima limitini oshirish
             if not premium_active:
                 translator_count += 1
 
@@ -576,6 +618,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"❌ Xato: {e}"
         )
+
 
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("translator_mode"):
