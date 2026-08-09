@@ -1117,6 +1117,7 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await premium_buy(update, context)
         return
 
+
     # 🤖 AI yordamchi
     if text in [
         "🤖 AI yordamchi",
@@ -1125,6 +1126,8 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]:
         context.user_data["ai_mode"] = True
         context.user_data["translator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["calculator_mode"] = False
 
         await ai_assistant(update, context)
         return
@@ -1153,6 +1156,7 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💻 Programming",
         "💻 Программирование"
     ]:
+        context.user_data["calculator_mode"] = False
         context.user_data["programming_mode"] = True
         context.user_data["translator_mode"] = False
         context.user_data["ai_mode"] = False
@@ -1167,6 +1171,7 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌍 Translator",
         "🌍 Переводчик"
     ]:
+        context.user_data["calculator_mode"] = False
         context.user_data["translator_mode"] = False
         context.user_data["ai_mode"] = False
 
