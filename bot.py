@@ -34,7 +34,7 @@ def init_db():
         )
     """)
 
-    # Translator uchun yangi ustunlar
+    # 🌍 Translator uchun ustunlar
     try:
         cursor.execute(
             "ALTER TABLE users ADD COLUMN translator_count INTEGER DEFAULT 0"
@@ -49,8 +49,25 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 💻 Programming uchun ustunlar
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN programming_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN programming_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
+
+
 init_db()
 
 def get_user(user_id):
@@ -274,36 +291,133 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    user_question = text
+    import requests
+    from datetime import date
 
+    user_id = update.effective_user.id
+    today = str(date.today())
+
+    # Foydalanuvchi ma'lumotlarini olish
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT programming_count, programming_last_date, premium_until
+        FROM users
+        WHERE user_id = ?
+        """,
+        (user_id,)
+    )
+
+    user = cursor.fetchone()
+
+    # Yangi foydalanuvchi
+    if user is None:
+        cursor.execute(
+            """
+            INSERT INTO users (
+                user_id,
+                programming_count,
+                programming_last_date
+            )
+            VALUES (?, 0, ?)
+            """,
+            (user_id, today)
+        )
+
+        conn.commit()
+
+        programming_count = 0
+        programming_last_date = today
+        premium_until = None
+
+    else:
+        programming_count, programming_last_date, premium_until = user
+
+    # Yangi kun bo'lsa limitni yangilash
+    if programming_last_date != today:
+        programming_count = 0
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET programming_count = 0,
+                programming_last_date = ?
+            WHERE user_id = ?
+            """,
+            (today, user_id)
+        )
+
+        conn.commit()
+
+    conn.close()
+
+    # ⭐ Premium holatini tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    # 🆓 Bepul foydalanuvchi uchun 5 ta limit
+    if not premium_active and programming_count >= 5:
+
+        if lang == "uz":
+            limit_text = (
+                "⛔ Bugungi bepul dasturlash limitingiz tugadi.\n\n"
+                "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
+            )
+        elif lang == "en":
+            limit_text = (
+                "⛔ Your free programming limit for today is over.\n\n"
+                "⭐ Upgrade to Premium for more access."
+            )
+        else:
+            limit_text = (
+                "⛔ Ваш бесплатный лимит программирования на сегодня закончился.\n\n"
+                "⭐ Premium даст больше возможностей."
+            )
+
+        await update.message.reply_text(limit_text)
+
+        context.user_data["programming_mode"] = False
+
+        return
+    user_question = text
+    # 🌍 Tilga qarab AI prompt
     if lang == "uz":
         prompt = (
             "Sen Student AI dasturlash yordamchisisan. "
             "Foydalanuvchining dasturlash savoliga o'zbek tilida "
-            "tushunarli javob ber. Kerak bo'lsa kod yoz. "
-            "Koddagi xatolarni ham tushuntir.\n\n"
+            "tushunarli va aniq javob ber. "
+            "Kerak bo'lsa kod yoz. "
+            "Koddagi xatolarni ham tushuntir. "
+            "Javobni keraksiz uzun qilma.\n\n"
             f"Foydalanuvchi savoli:\n{user_question}"
         )
 
     elif lang == "en":
         prompt = (
-            "You are Student AI programming assistant. "
-            "Answer the user's programming question clearly. "
-            "Provide code when needed and explain errors.\n\n"
+            "You are the Student AI programming assistant. "
+            "Answer the user's programming question clearly in English. "
+            "Provide code when needed and explain errors. "
+            "Do not make the answer unnecessarily long.\n\n"
             f"User question:\n{user_question}"
         )
 
     else:
         prompt = (
             "Ты помощник Student AI по программированию. "
-            "Отвечай понятно на русском языке. "
-            "При необходимости пиши код и объясняй ошибки.\n\n"
+            "Отвечай понятно и точно на русском языке. "
+            "При необходимости пиши код и объясняй ошибки. "
+            "Не делай ответ unnecessarily длинным.\n\n"
             f"Вопрос пользователя:\n{user_question}"
         )
 
-    await update.message.reply_text("⏳ Kodni tahlil qilyapman...")
-
-    import requests
+    await update.message.reply_text(
+        "⏳ Kodni tahlil qilyapman..."
+    )
 
     url = (
         "https://generativelanguage.googleapis.com/"
@@ -334,12 +448,44 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         result = response.json()
+
         print("🔍 PROGRAMMING GEMINI:", result)
 
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
-            await update.message.reply_text(answer)
+            # 🆓 Faqat bepul foydalanuvchi limitini oshirish
+            if not premium_active:
+                programming_count += 1
+
+                conn = sqlite3.connect("student_ai.db")
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET programming_count = ?,
+                        programming_last_date = ?
+                    WHERE user_id = ?
+                    """,
+                    (programming_count, today, user_id)
+                )
+
+                conn.commit()
+                conn.close()
+
+                limit_text = (
+                    f"\n\n📊 Bugungi bepul dasturlash savollari: "
+                    f"{programming_count}/5"
+                )
+            else:
+                limit_text = (
+                    "\n\n⭐ Premium — dasturlash limiti yo'q"
+                )
+
+            await update.message.reply_text(
+                f"💻 Javob:\n\n{answer}{limit_text}"
+            )
 
         else:
             await update.message.reply_text(
@@ -350,6 +496,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"❌ Xato: {e}"
         )
+
 
 async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
