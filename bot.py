@@ -577,7 +577,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         result = response.json()
-
+        print("🔍 TRANSLATOR GEMINI:", result)
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
