@@ -1107,6 +1107,40 @@ app = Application.builder().token(TOKEN).build()
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
+    # 📄 PDF / Hujjat
+    if text in [
+        "📄 PDF / Hujjat",
+        "📄 PDF / Documents",
+        "📄 PDF / Документы"
+    ]:
+        context.user_data["pdf_mode"] = True
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        keyboard = [
+            ["🖼️ Rasmlarni PDF qilish"],
+            ["📑 PDF tahlil qilish"],
+            ["📝 PDF xulosa"],
+            ["❓ PDFdan savol berish"],
+            ["🌐 PDF tarjima qilish"],
+            ["📄 PDF → Rasmlar"],
+            ["⬅️ Orqaga"]
+        ]
+
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+
+        await update.message.reply_text(
+            "📄 HUJJATLAR YORDAMCHISI\n\n"
+            "Kerakli xizmatni tanlang:",
+            reply_markup=reply_markup
+        )
+        return
+
     # ⭐ Premium
     if text == "⭐ Premium":
         await premium(update, context)
@@ -1147,6 +1181,40 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🧮 Kalkulyator\n\n"
             "Hisoblamoqchi bo‘lgan ifodangizni yuboring.\n"
             "Masalan: 25 + 17"
+        )
+        return
+
+    # 📄 PDF / Hujjat
+    if text in [
+        "📄 PDF / Hujjat",
+        "📄 PDF / Documents",
+        "📄 PDF / Документы"
+    ]:
+        context.user_data["pdf_mode"] = True
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        keyboard = [
+            ["🖼️ Rasmlarni PDF qilish"],
+            ["📑 PDF tahlil qilish"],
+            ["📝 PDF xulosa"],
+            ["❓ PDFdan savol berish"],
+            ["🌐 PDF tarjima qilish"],
+            ["📄 PDF → Rasmlar"],
+            ["⬅️ Orqaga"]
+        ]
+
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+
+        await update.message.reply_text(
+            "📄 HUJJATLAR YORDAMCHISI\n\n"
+            "Kerakli xizmatni tanlang:",
+            reply_markup=reply_markup
         )
         return
 
@@ -1239,6 +1307,10 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🤖 Agar AI rejimi yoqilgan bo'lsa
     if context.user_data.get("ai_mode"):
         await ai_chat(update, context)
+        return
+
+    # 📄 Agar PDF rejimi yoqilgan bo'lsa
+    if context.user_data.get("pdf_mode"):
         return
 
     # 💻 Agar dasturlash rejimi yoqilgan bo'lsa
