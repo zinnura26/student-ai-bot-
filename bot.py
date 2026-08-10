@@ -597,19 +597,46 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["⬅️ Orqaga"]
     ]
 
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True
-    )
-
     await update.message.reply_text(
         "📄 HUJJATLAR YORDAMCHISI\n\n"
         "Kerakli xizmatni tanlang:",
-        reply_markup=reply_markup
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+    )
+
+
+# ============================================================
+# 🖼️ RASMLARNI PDF QILISH
+# ============================================================
+
+async def start_image_to_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["pdf_collecting"] = True
+    context.user_data["pdf_images"] = []
+
+    keyboard = [
+        ["✅ PDF tayyorlash"],
+        ["❌ Bekor qilish"],
+        ["⬅️ Orqaga"]
+    ]
+
+    await update.message.reply_text(
+        "🖼️ RASMLARNI PDF QILISH\n\n"
+        "Rasmlaringizni ketma-ket yuboring.\n\n"
+        "🆓 Bepul foydalanuvchi: kuniga 5 ta rasm.\n"
+        "⭐ Premium foydalanuvchi: bir PDF uchun 30 ta rasm.\n\n"
+        "Rasmlarni yuborib bo‘lgach,\n"
+        "«✅ PDF tayyorlash» tugmasini bosing.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
     )
 
 
 async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     if not context.user_data.get("pdf_collecting"):
         return
 
@@ -619,50 +646,71 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
+    # Foydalanuvchi ma'lumotlarini olish
     cursor.execute(
-        "SELECT pdf_image_count, pdf_image_last_date, premium_until "
-        "FROM users WHERE user_id = ?",
+        """
+        SELECT pdf_image_count,
+               pdf_image_last_date,
+               premium_until
+        FROM users
+        WHERE user_id = ?
+        """,
         (user_id,)
     )
 
     row = cursor.fetchone()
 
+    # Agar foydalanuvchi bazada bo'lmasa
     if row is None:
+
         cursor.execute(
-            "INSERT INTO users "
-            "(user_id, pdf_image_count, pdf_image_last_date) "
-            "VALUES (?, 0, ?)",
+            """
+            INSERT INTO users
+            (user_id, pdf_image_count, pdf_image_last_date)
+            VALUES (?, 0, ?)
+            """,
             (user_id, today)
         )
+
         conn.commit()
+
         pdf_count = 0
         last_date = today
         premium_until = None
+
     else:
+
         pdf_count = row[0] or 0
         last_date = row[1]
         premium_until = row[2]
 
-    # Yangi kun bo'lsa limitni yangilash
+    # Yangi kun
     if last_date != today:
+
         pdf_count = 0
 
         cursor.execute(
-            "UPDATE users SET pdf_image_count = 0, "
-            "pdf_image_last_date = ? WHERE user_id = ?",
+            """
+            UPDATE users
+            SET pdf_image_count = 0,
+                pdf_image_last_date = ?
+            WHERE user_id = ?
+            """,
             (today, user_id)
         )
+
         conn.commit()
 
-    # Premium holatini tekshirish
+    # Premium tekshirish
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # Bepul foydalanuvchi uchun kunlik 5 ta limit
+    # 🆓 Bepul limit
     if not premium_active and pdf_count >= 5:
+
         conn.close()
 
         await update.message.reply_text(
@@ -671,251 +719,107 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🌅 Ertaga yana 5 ta rasm beriladi.\n\n"
             "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
         )
+
         return
 
-    images = context.user_data.setdefault("pdf_images", [])
+    images = context.user_data.setdefault(
+        "pdf_images",
+        []
+    )
 
-    # Bitta PDF ichida maksimal 30 ta rasm
+    # Bitta PDF uchun maksimal 30 ta rasm
     if len(images) >= 30:
+
         conn.close()
 
         await update.message.reply_text(
             "⛔ Bitta PDF uchun maksimal 30 ta rasm."
         )
+
+        return
+
+    # Bepul foydalanuvchi yana rasm yuborsa
+    if not premium_active and pdf_count >= 5:
+
+        conn.close()
+
+        await update.message.reply_text(
+            "⚠️ Bugungi bepul limit tugadi.\n\n"
+            "⭐ Premium orqali davom etishingiz mumkin."
+        )
+
         return
 
     photo = update.message.photo[-1]
 
-    # Telegram file_id ni saqlaymiz
+    # Telegram file_id saqlanadi
     images.append(photo.file_id)
 
-    # Bepul foydalanuvchining kunlik limitini oshiramiz
+    # Bepul foydalanuvchi hisoblagichi
     if not premium_active:
+
         pdf_count += 1
 
         cursor.execute(
-            "UPDATE users SET pdf_image_count = ?, "
-            "pdf_image_last_date = ? WHERE user_id = ?",
-            (pdf_count, today, user_id)
+            """
+            UPDATE users
+            SET pdf_image_count = ?,
+                pdf_image_last_date = ?
+            WHERE user_id = ?
+            """,
+            (
+                pdf_count,
+                today,
+                user_id
+            )
         )
 
         conn.commit()
 
     conn.close()
 
+    # Javob
     if premium_active:
+
         await update.message.reply_text(
             f"✅ {len(images)} ta rasm qabul qilindi.\n\n"
-            "⭐ Premium foydalanuvchi."
+            "⭐ Premium foydalanuvchi.\n\n"
+            "Yana rasm yuboring yoki "
+            "«✅ PDF tayyorlash» tugmasini bosing."
         )
+
     else:
+
         await update.message.reply_text(
             f"✅ {pdf_count}/5 ta bepul rasm ishlatildi.\n\n"
             "Yana rasm yuboring yoki "
             "«✅ PDF tayyorlash» tugmasini bosing."
         )
 
-async def pdf_image_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["pdf_image_mode"] = True
-    context.user_data["pdf_images"] = []
 
-    await update.message.reply_text(
-        "🖼️ RASMLARNI PDF QILISH\n\n"
-        "PDF qilmoqchi bo‘lgan rasmlaringizni yuboring.\n\n"
-        "📌 Bepul limit: kuniga 5 ta rasm.\n"
-        "📤 Rasmlarni bittalab yuboring.\n\n"
-        "✅ Tugatgach /pdf_tayyor yozing."
-    )
-
-
-async def pdf_receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get("pdf_image_mode"):
-        return
-
-    images = context.user_data.setdefault("pdf_images", [])
-
-    if len(images) >= 5:
-        await update.message.reply_text(
-            "⚠️ Bugungi bepul limit tugadi.\n\n"
-            "📄 5 ta rasm yuborildi.\n"
-            "⭐ Ko‘proq rasm uchun Premiumdan foydalaning."
-        )
-        return
-
-    photo = update.message.photo[-1]
-    images.append(photo.file_id)
-
-    await update.message.reply_text(
-        f"✅ Rasm qabul qilindi: {len(images)}/5\n\n"
-        "Yana rasm yuboring yoki /pdf_tayyor yozing."
-    )
-
-
-async def pdf_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    images = context.user_data.get("pdf_images", [])
-
-    if not images:
-        await update.message.reply_text(
-            "❌ Hali hech qanday rasm yubormadingiz."
-        )
-        return
-
-    await update.message.reply_text(
-        f"📄 {len(images)} ta rasm qabul qilindi.\n\n"
-        "⏳ PDF tayyorlash qismi keyingi bosqichda ulanadi."
-    )
-
-async def start_image_to_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["pdf_image_mode"] = True
-    context.user_data["pdf_images"] = []
-
-    keyboard = [
-        ["✅ PDF tayyorlash"],
-        ["❌ Bekor qilish"]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True
-    )
-
-    await update.message.reply_text(
-        "🖼️ RASMLARNI PDF QILISH\n\n"
-        "Rasmlaringizni yuboring.\n"
-        "🆓 Bepul foydalanuvchi: 5 ta rasm.\n"
-        "⭐ Premium: 30 ta rasm.\n\n"
-        "Bir nechta rasm yuborishingiz mumkin.\n"
-        "Hammasini yuborgach, «✅ PDF tayyorlash» tugmasini bosing.",
-        reply_markup=reply_markup
-    )
-
-
-async def receive_pdf_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get("pdf_image_mode"):
-        return
-
-    images = context.user_data.setdefault("pdf_images", [])
-
-    # Hozircha bir martalik jarayonda maksimal 30 ta rasm
-    if len(images) >= 30:
-        await update.message.reply_text(
-            "⛔ 30 ta rasm chegarasiga yetdingiz.\n"
-            "Avval PDF tayyorlang."
-        )
-        return
-
-    photo = update.message.photo[-1]
-
-    file = await photo.get_file()
-
-    file_path = f"pdf_image_{update.effective_user.id}_{len(images) + 1}.jpg"
-
-    await file.download_to_drive(file_path)
-
-    images.append(file_path)
-
-    await update.message.reply_text(
-        f"✅ {len(images)}-rasm qabul qilindi.\n\n"
-        f"📊 Yuborilgan rasmlar: {len(images)}/30\n\n"
-        "Yana rasm yuboring yoki «✅ PDF tayyorlash» tugmasini bosing."
-    )
-
+# ============================================================
+# 📄 PDF YARATISH
+# ============================================================
 
 async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    images = context.user_data.get("pdf_images", [])
+
+    images = context.user_data.get(
+        "pdf_images",
+        []
+    )
 
     if not images:
+
         await update.message.reply_text(
             "❌ Hali hech qanday rasm yubormadingiz."
         )
+
         return
 
     user_id = update.effective_user.id
-    today = __import__("datetime").date.today().isoformat()
-
-    conn = sqlite3.connect("student_ai.db")
-    cursor = conn.cursor()
-
-    # Foydalanuvchining bugungi PDF rasm limitini olish
-    cursor.execute(
-        "SELECT pdf_image_count, pdf_image_last_date, premium_until "
-        "FROM users WHERE user_id = ?",
-        (user_id,)
-    )
-
-    row = cursor.fetchone()
-
-    if row is None:
-        conn.close()
-        await update.message.reply_text(
-            "❌ Foydalanuvchi ma'lumotlari topilmadi."
-        )
-        return
-
-    pdf_count = row[0] or 0
-    last_date = row[1]
-    premium_until = row[2]
-
-    # Yangi kun bo'lsa, limit yangilanadi
-    if last_date != today:
-        pdf_count = 0
-
-        cursor.execute(
-            "UPDATE users SET pdf_image_count = 0, "
-            "pdf_image_last_date = ? WHERE user_id = ?",
-            (today, user_id)
-        )
-
-        conn.commit()
-
-    # Premium holatini tekshirish
-    premium_active = (
-        premium_until is not None
-        and premium_until != ""
-        and premium_until >= today
-    )
-
-    # 🆓 Bepul foydalanuvchi limiti
-    if not premium_active:
-
-        # Bugungi limit allaqachon tugagan bo'lsa
-        if pdf_count >= 5:
-            conn.close()
-
-            await update.message.reply_text(
-                "⚠️ Bugungi bepul PDF rasmlar limitingiz tugagan.\n\n"
-                "📸 Bugun 5 ta rasm ishlatdingiz.\n"
-                "🌅 Ertaga yana 5 ta rasm beriladi.\n\n"
-                "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
-            )
-            return
-
-        # Shu PDF ichidagi rasmlar ham limitdan oshmasin
-        remaining = 5 - pdf_count
-
-        if len(images) > remaining:
-            conn.close()
-
-            await update.message.reply_text(
-                "⚠️ Bugungi bepul limitdan oshib ketdingiz.\n\n"
-                f"📸 Bugun sizda faqat {remaining} ta rasm qoldi.\n"
-                "⭐ Premium orqali ko‘proq rasm ishlatishingiz mumkin."
-            )
-            return
-
-    # Premium uchun maksimal 30 ta rasm
-    if premium_active and len(images) > 30:
-        conn.close()
-
-        await update.message.reply_text(
-            "⛔ Premium foydalanuvchi uchun bir PDFda "
-            "maksimal 30 ta rasm."
-        )
-        return
-
-    conn.close()
 
     try:
+
         from PIL import Image
         from io import BytesIO
 
@@ -925,10 +829,16 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
 
         pil_images = []
 
+        # Telegramdan rasmlarni olish
         for file_id in images:
-            telegram_file = await context.bot.get_file(file_id)
 
-            image_bytes = await telegram_file.download_as_bytearray()
+            telegram_file = await context.bot.get_file(
+                file_id
+            )
+
+            image_bytes = (
+                await telegram_file.download_as_bytearray()
+            )
 
             img = Image.open(
                 BytesIO(image_bytes)
@@ -937,16 +847,22 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
             pil_images.append(img)
 
         if not pil_images:
+
             await update.message.reply_text(
                 "❌ Rasmlarni olishda xatolik yuz berdi."
             )
+
             return
 
-        pdf_path = f"Student_AI_{user_id}.pdf"
+        # PDF nomi
+        pdf_path = (
+            f"Student_AI_{user_id}.pdf"
+        )
 
         first_image = pil_images[0]
         other_images = pil_images[1:]
 
+        # PDF yaratish
         first_image.save(
             pdf_path,
             "PDF",
@@ -955,7 +871,12 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
             append_images=other_images
         )
 
-        with open(pdf_path, "rb") as pdf_file:
+        # Telegramga yuborish
+        with open(
+            pdf_path,
+            "rb"
+        ) as pdf_file:
+
             await update.message.reply_document(
                 document=pdf_file,
                 filename="Student_AI.pdf",
@@ -966,63 +887,113 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
             )
 
-        # 🆓 PDF muvaffaqiyatli yaratilgandan keyin
-        # bepul foydalanuvchining kunlik limitini hisobga olamiz
-        if not premium_active:
-
-            conn = sqlite3.connect("student_ai.db")
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT pdf_image_count, pdf_image_last_date "
-                "FROM users WHERE user_id = ?",
-                (user_id,)
-            )
-
-            row = cursor.fetchone()
-
-            if row:
-                current_count = row[0] or 0
-
-                cursor.execute(
-                    "UPDATE users SET pdf_image_count = ?, "
-                    "pdf_image_last_date = ? WHERE user_id = ?",
-                    (
-                        current_count + len(images),
-                        today,
-                        user_id
-                    )
-                )
-
-                conn.commit()
-
-            conn.close()
-
         # Rasmlarni yopish
         for img in pil_images:
+
             try:
                 img.close()
+
             except Exception:
                 pass
 
-        # PDF faylni o'chirish
+        # PDFni o'chirish
         try:
+
             os.remove(pdf_path)
+
         except Exception:
+
             pass
 
         # Jarayonni tozalash
         context.user_data["pdf_images"] = []
         context.user_data["pdf_collecting"] = False
-        context.user_data["pdf_image_mode"] = False
 
     except Exception as e:
-        print("PDF ERROR:", e)
+
+        print(
+            "PDF ERROR:",
+            e
+        )
 
         await update.message.reply_text(
             "❌ PDF yaratishda xatolik yuz berdi.\n\n"
             f"Texnik xato: {e}"
         )
+
+
+# ============================================================
+# ❌ PDFNI BEKOR QILISH
+# ============================================================
+
+async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["pdf_images"] = []
+    context.user_data["pdf_collecting"] = False
+
+    await update.message.reply_text(
+        "❌ PDF tayyorlash bekor qilindi."
+    )
+
+
+# ============================================================
+# 📑 PDF TAHLIL
+# ============================================================
+
+async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "📑 PDF tahlil qilish\n\n"
+        "Bu funksiya hozircha tayyorlanmoqda."
+    )
+
+
+# ============================================================
+# 📝 PDF XULOSA
+# ============================================================
+
+async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "📝 PDF xulosa\n\n"
+        "Bu funksiya hozircha tayyorlanmoqda."
+    )
+
+
+# ============================================================
+# ❓ PDFDAN SAVOL
+# ============================================================
+
+async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "❓ PDFdan savol berish\n\n"
+        "Bu funksiya hozircha tayyorlanmoqda."
+    )
+
+
+# ============================================================
+# 🌐 PDF TARJIMA
+# ============================================================
+
+async def pdf_translate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "🌐 PDF tarjima qilish\n\n"
+        "Bu funksiya hozircha tayyorlanmoqda."
+    )
+
+
+# ============================================================
+# 📄 PDF → RASMLAR
+# ============================================================
+
+async def pdf_to_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "📄 PDF → Rasmlar\n\n"
+        "Bu funksiya hozircha tayyorlanmoqda."
+    )
 
 async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
     images = context.user_data.get("pdf_images", [])
