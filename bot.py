@@ -727,9 +727,6 @@ async def receive_pdf_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get("pdf_image_mode"):
-        return
-
     images = context.user_data.get("pdf_images", [])
 
     if not images:
@@ -746,6 +743,7 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
 
     try:
         from PIL import Image
+        from io import BytesIO
 
         await update.message.reply_text(
             "⏳ Rasmlar PDF faylga birlashtirilmoqda..."
@@ -753,9 +751,19 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
 
         pil_images = []
 
-        for image_path in images:
-            img = Image.open(image_path).convert("RGB")
+        for file_id in images:
+            telegram_file = await context.bot.get_file(file_id)
+
+            image_bytes = await telegram_file.download_as_bytearray()
+
+            img = Image.open(BytesIO(image_bytes)).convert("RGB")
             pil_images.append(img)
+
+        if not pil_images:
+            await update.message.reply_text(
+                "❌ Rasmlarni olishda xatolik yuz berdi."
+            )
+            return
 
         pdf_path = f"Student_AI_{update.effective_user.id}.pdf"
 
@@ -781,10 +789,9 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
             )
 
-        # Vaqtinchalik rasmlarni o‘chirish
-        for image_path in images:
+        for img in pil_images:
             try:
-                os.remove(image_path)
+                img.close()
             except Exception:
                 pass
 
@@ -794,16 +801,15 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
 
         context.user_data["pdf_images"] = []
-        context.user_data["pdf_image_mode"] = False
+        context.user_data["pdf_collecting"] = False
 
     except Exception as e:
         print("PDF ERROR:", e)
 
         await update.message.reply_text(
-            "❌ PDF yaratishda xatolik yuz berdi.\n"
-            "Iltimos, qaytadan urinib ko‘ring."
+            "❌ PDF yaratishda xatolik yuz berdi.\n\n"
+            f"Texnik xato: {e}"
         )
-
 
 async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
     images = context.user_data.get("pdf_images", [])
