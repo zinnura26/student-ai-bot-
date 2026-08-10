@@ -570,6 +570,266 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(msg)
 
+
+async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        ["🖼️ Rasmlarni PDF qilish"],
+        ["📑 PDF tahlil qilish"],
+        ["📝 PDF xulosa"],
+        ["❓ PDFdan savol berish"],
+        ["🌐 PDF tarjima qilish"],
+        ["📄 PDF → Rasmlar"],
+        ["⬅️ Orqaga"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        "📄 HUJJATLAR YORDAMCHISI\n\n"
+        "Kerakli xizmatni tanlang:",
+        reply_markup=reply_markup
+    )
+
+async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("pdf_collecting"):
+        return
+
+    images = context.user_data.setdefault("pdf_images", [])
+
+    # Bepul limit: 5 ta rasm
+    if len(images) >= 5:
+        await update.message.reply_text(
+            "⚠️ Bepul limit tugadi.\n\n"
+            "📸 Siz 5 ta rasm yubordingiz.\n"
+            "⭐ Ko‘proq rasm uchun Premiumdan foydalaning."
+        )
+        return
+
+    photo = update.message.photo[-1]
+
+    images.append(photo.file_id)
+
+    count = len(images)
+
+    await update.message.reply_text(
+        f"✅ {count}/5 ta rasm qabul qilindi.\n\n"
+        "Yana rasm yuboring yoki "
+        "«✅ PDF tayyorlash» tugmasini bosing."
+    )
+
+async def pdf_image_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["pdf_image_mode"] = True
+    context.user_data["pdf_images"] = []
+
+    await update.message.reply_text(
+        "🖼️ RASMLARNI PDF QILISH\n\n"
+        "PDF qilmoqchi bo‘lgan rasmlaringizni yuboring.\n\n"
+        "📌 Bepul limit: kuniga 5 ta rasm.\n"
+        "📤 Rasmlarni bittalab yuboring.\n\n"
+        "✅ Tugatgach /pdf_tayyor yozing."
+    )
+
+
+async def pdf_receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("pdf_image_mode"):
+        return
+
+    images = context.user_data.setdefault("pdf_images", [])
+
+    if len(images) >= 5:
+        await update.message.reply_text(
+            "⚠️ Bugungi bepul limit tugadi.\n\n"
+            "📄 5 ta rasm yuborildi.\n"
+            "⭐ Ko‘proq rasm uchun Premiumdan foydalaning."
+        )
+        return
+
+    photo = update.message.photo[-1]
+    images.append(photo.file_id)
+
+    await update.message.reply_text(
+        f"✅ Rasm qabul qilindi: {len(images)}/5\n\n"
+        "Yana rasm yuboring yoki /pdf_tayyor yozing."
+    )
+
+
+async def pdf_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    images = context.user_data.get("pdf_images", [])
+
+    if not images:
+        await update.message.reply_text(
+            "❌ Hali hech qanday rasm yubormadingiz."
+        )
+        return
+
+    await update.message.reply_text(
+        f"📄 {len(images)} ta rasm qabul qilindi.\n\n"
+        "⏳ PDF tayyorlash qismi keyingi bosqichda ulanadi."
+    )
+
+async def start_image_to_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["pdf_image_mode"] = True
+    context.user_data["pdf_images"] = []
+
+    keyboard = [
+        ["✅ PDF tayyorlash"],
+        ["❌ Bekor qilish"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        "🖼️ RASMLARNI PDF QILISH\n\n"
+        "Rasmlaringizni yuboring.\n"
+        "🆓 Bepul foydalanuvchi: 5 ta rasm.\n"
+        "⭐ Premium: 30 ta rasm.\n\n"
+        "Bir nechta rasm yuborishingiz mumkin.\n"
+        "Hammasini yuborgach, «✅ PDF tayyorlash» tugmasini bosing.",
+        reply_markup=reply_markup
+    )
+
+
+async def receive_pdf_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("pdf_image_mode"):
+        return
+
+    images = context.user_data.setdefault("pdf_images", [])
+
+    # Hozircha bir martalik jarayonda maksimal 30 ta rasm
+    if len(images) >= 30:
+        await update.message.reply_text(
+            "⛔ 30 ta rasm chegarasiga yetdingiz.\n"
+            "Avval PDF tayyorlang."
+        )
+        return
+
+    photo = update.message.photo[-1]
+
+    file = await photo.get_file()
+
+    file_path = f"pdf_image_{update.effective_user.id}_{len(images) + 1}.jpg"
+
+    await file.download_to_drive(file_path)
+
+    images.append(file_path)
+
+    await update.message.reply_text(
+        f"✅ {len(images)}-rasm qabul qilindi.\n\n"
+        f"📊 Yuborilgan rasmlar: {len(images)}/30\n\n"
+        "Yana rasm yuboring yoki «✅ PDF tayyorlash» tugmasini bosing."
+    )
+
+
+async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("pdf_image_mode"):
+        return
+
+    images = context.user_data.get("pdf_images", [])
+
+    if not images:
+        await update.message.reply_text(
+            "❌ Hali hech qanday rasm yubormadingiz."
+        )
+        return
+
+    if len(images) > 30:
+        await update.message.reply_text(
+            "⛔ Bir martada maksimal 30 ta rasm."
+        )
+        return
+
+    try:
+        from PIL import Image
+
+        await update.message.reply_text(
+            "⏳ Rasmlar PDF faylga birlashtirilmoqda..."
+        )
+
+        pil_images = []
+
+        for image_path in images:
+            img = Image.open(image_path).convert("RGB")
+            pil_images.append(img)
+
+        pdf_path = f"Student_AI_{update.effective_user.id}.pdf"
+
+        first_image = pil_images[0]
+        other_images = pil_images[1:]
+
+        first_image.save(
+            pdf_path,
+            "PDF",
+            resolution=100.0,
+            save_all=True,
+            append_images=other_images
+        )
+
+        with open(pdf_path, "rb") as pdf_file:
+            await update.message.reply_document(
+                document=pdf_file,
+                filename="Student_AI.pdf",
+                caption=(
+                    "✅ PDF tayyor!\n\n"
+                    f"🖼️ Rasmlar soni: {len(images)} ta\n"
+                    "🤖 Student AI"
+                )
+            )
+
+        # Vaqtinchalik rasmlarni o‘chirish
+        for image_path in images:
+            try:
+                os.remove(image_path)
+            except Exception:
+                pass
+
+        try:
+            os.remove(pdf_path)
+        except Exception:
+            pass
+
+        context.user_data["pdf_images"] = []
+        context.user_data["pdf_image_mode"] = False
+
+    except Exception as e:
+        print("PDF ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDF yaratishda xatolik yuz berdi.\n"
+            "Iltimos, qaytadan urinib ko‘ring."
+        )
+
+
+async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    images = context.user_data.get("pdf_images", [])
+
+    for image_path in images:
+        try:
+            os.remove(image_path)
+        except Exception:
+            pass
+
+    context.user_data["pdf_images"] = []
+    context.user_data["pdf_image_mode"] = False
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        await pdf_menu(update, context)
+    elif lang == "en":
+        await update.message.reply_text(
+            "❌ Cancelled."
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Отменено."
+        )
+
 async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
 
@@ -1119,26 +1379,64 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["translator_mode"] = False
         context.user_data["ai_mode"] = False
 
+        await pdf_menu(update, context)
+        return
+
+    # 🖼️ Rasmlarni PDF qilish
+    if text == "🖼️ Rasmlarni PDF qilish":
+        context.user_data["pdf_images"] = []
+        context.user_data["pdf_collecting"] = True
+
+        await update.message.reply_text(
+            "🖼️ Rasmlarni ketma-ket yuboring.\n\n"
+            "📌 Bepul foydalanuvchi uchun: 5 ta rasm.\n"
+            "📌 Rasmlarni yuborib bo‘lgach, «✅ PDF tayyorlash» tugmasini bosing."
+        )
+
         keyboard = [
-            ["🖼️ Rasmlarni PDF qilish"],
-            ["📑 PDF tahlil qilish"],
-            ["📝 PDF xulosa"],
-            ["❓ PDFdan savol berish"],
-            ["🌐 PDF tarjima qilish"],
-            ["📄 PDF → Rasmlar"],
+            ["✅ PDF tayyorlash"],
+            ["❌ Bekor qilish"],
             ["⬅️ Orqaga"]
         ]
 
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
-
         await update.message.reply_text(
-            "📄 HUJJATLAR YORDAMCHISI\n\n"
-            "Kerakli xizmatni tanlang:",
-            reply_markup=reply_markup
+            "👇 Kerakli amalni tanlang:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
         )
+        return
+
+    # ✅ PDF tayyorlash
+    if text == "✅ PDF tayyorlash":
+        await make_pdf_from_images(update, context)
+        return
+
+    # ❌ PDF bekor qilish
+    if text == "❌ Bekor qilish":
+        await cancel_pdf_images(update, context)
+        return
+
+    # ⬅️ Orqaga
+    if text in [
+        "⬅️ Orqaga",
+        "⬅️ Back",
+        "⬅️ Назад"
+    ]:
+        context.user_data["pdf_mode"] = False
+        context.user_data["pdf_collecting"] = False
+        context.user_data["pdf_images"] = []
+
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "uz":
+            await uz_menu(update)
+        elif lang == "en":
+            await en_menu(update)
+        else:
+            await ru_menu(update)
+
         return
 
     # ⭐ Premium
@@ -1330,6 +1628,13 @@ app.add_handler(
 
 app.add_handler(
     MessageHandler(
+        filters.PHOTO,
+        pdf_photo_handler
+    )
+)
+
+app.add_handler(
+    MessageHandler(
         filters.TEXT & ~filters.COMMAND,
         text_router
     )
@@ -1338,4 +1643,3 @@ app.add_handler(
 print("✅ Student AI ishga tushdi...")
 
 app.run_polling()
-
