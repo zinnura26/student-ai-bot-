@@ -646,7 +646,6 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
-    # Foydalanuvchi ma'lumotlarini olish
     cursor.execute(
         """
         SELECT pdf_image_count,
@@ -660,9 +659,7 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     row = cursor.fetchone()
 
-    # Agar foydalanuvchi bazada bo'lmasa
     if row is None:
-
         cursor.execute(
             """
             INSERT INTO users
@@ -671,7 +668,6 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
             (user_id, today)
         )
-
         conn.commit()
 
         pdf_count = 0
@@ -679,7 +675,6 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         premium_until = None
 
     else:
-
         pdf_count = row[0] or 0
         last_date = row[1]
         premium_until = row[2]
@@ -708,7 +703,7 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         and premium_until >= today
     )
 
-    # 🆓 Bepul limit
+    # 🆓 Bepul limit tugagan bo‘lsa
     if not premium_active and pdf_count >= 5:
 
         conn.close()
@@ -738,24 +733,14 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # Bepul foydalanuvchi yana rasm yuborsa
-    if not premium_active and pdf_count >= 5:
-
-        conn.close()
-
-        await update.message.reply_text(
-            "⚠️ Bugungi bepul limit tugadi.\n\n"
-            "⭐ Premium orqali davom etishingiz mumkin."
-        )
-
-        return
-
     photo = update.message.photo[-1]
 
     # Telegram file_id saqlanadi
     images.append(photo.file_id)
 
-    # Bepul foydalanuvchi hisoblagichi
+    # Hozircha limit hisoblagichini shu yerda oshiramiz
+    # PDF muvaffaqiyatli tayyorlanganda make_pdf_from_images
+    # tomonidan yana hisoblanmasligi kerak.
     if not premium_active:
 
         pdf_count += 1
@@ -778,7 +763,6 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn.close()
 
-    # Javob
     if premium_active:
 
         await update.message.reply_text(
@@ -795,11 +779,6 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Yana rasm yuboring yoki "
             "«✅ PDF tayyorlash» tugmasini bosing."
         )
-
-
-# ============================================================
-# 📄 PDF YARATISH
-# ============================================================
 
 async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
