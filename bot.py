@@ -34,6 +34,21 @@ def init_db():
         )
     """)
 
+    # 📄 PDF rasmlar uchun kunlik limit
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_image_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_image_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     # 🌍 Translator uchun ustunlar
     try:
         cursor.execute(
@@ -593,32 +608,112 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
+
 async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get("pdf_collecting"):
         return
 
+    user_id = update.effective_user.id
+    today = __import__("datetime").date.today().isoformat()
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT pdf_image_count, pdf_image_last_date, premium_until "
+        "FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            "INSERT INTO users "
+            "(user_id, pdf_image_count, pdf_image_last_date) "
+            "VALUES (?, 0, ?)",
+            (user_id, today)
+        )
+        conn.commit()
+        pdf_count = 0
+        last_date = today
+        premium_until = None
+    else:
+        pdf_count = row[0] or 0
+        last_date = row[1]
+        premium_until = row[2]
+
+    # Yangi kun bo'lsa limitni yangilash
+    if last_date != today:
+        pdf_count = 0
+
+        cursor.execute(
+            "UPDATE users SET pdf_image_count = 0, "
+            "pdf_image_last_date = ? WHERE user_id = ?",
+            (today, user_id)
+        )
+        conn.commit()
+
+    # Premium holatini tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    # Bepul foydalanuvchi uchun kunlik 5 ta limit
+    if not premium_active and pdf_count >= 5:
+        conn.close()
+
+        await update.message.reply_text(
+            "⚠️ Bugungi bepul PDF rasmlar limitingiz tugadi.\n\n"
+            "📸 Bugun 5 ta rasm ishlatdingiz.\n"
+            "🌅 Ertaga yana 5 ta rasm beriladi.\n\n"
+            "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
+        )
+        return
+
     images = context.user_data.setdefault("pdf_images", [])
 
-    # Bepul limit: 5 ta rasm
-    if len(images) >= 5:
+    # Bitta PDF ichida maksimal 30 ta rasm
+    if len(images) >= 30:
+        conn.close()
+
         await update.message.reply_text(
-            "⚠️ Bepul limit tugadi.\n\n"
-            "📸 Siz 5 ta rasm yubordingiz.\n"
-            "⭐ Ko‘proq rasm uchun Premiumdan foydalaning."
+            "⛔ Bitta PDF uchun maksimal 30 ta rasm."
         )
         return
 
     photo = update.message.photo[-1]
 
+    # Telegram file_id ni saqlaymiz
     images.append(photo.file_id)
 
-    count = len(images)
+    # Bepul foydalanuvchining kunlik limitini oshiramiz
+    if not premium_active:
+        pdf_count += 1
 
-    await update.message.reply_text(
-        f"✅ {count}/5 ta rasm qabul qilindi.\n\n"
-        "Yana rasm yuboring yoki "
-        "«✅ PDF tayyorlash» tugmasini bosing."
-    )
+        cursor.execute(
+            "UPDATE users SET pdf_image_count = ?, "
+            "pdf_image_last_date = ? WHERE user_id = ?",
+            (pdf_count, today, user_id)
+        )
+
+        conn.commit()
+
+    conn.close()
+
+    if premium_active:
+        await update.message.reply_text(
+            f"✅ {len(images)} ta rasm qabul qilindi.\n\n"
+            "⭐ Premium foydalanuvchi."
+        )
+    else:
+        await update.message.reply_text(
+            f"✅ {pdf_count}/5 ta bepul rasm ishlatildi.\n\n"
+            "Yana rasm yuboring yoki "
+            "«✅ PDF tayyorlash» tugmasini bosing."
+        )
 
 async def pdf_image_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["pdf_image_mode"] = True
@@ -735,11 +830,90 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    if len(images) > 30:
+    user_id = update.effective_user.id
+    today = __import__("datetime").date.today().isoformat()
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    # Foydalanuvchining bugungi PDF rasm limitini olish
+    cursor.execute(
+        "SELECT pdf_image_count, pdf_image_last_date, premium_until "
+        "FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        conn.close()
         await update.message.reply_text(
-            "⛔ Bir martada maksimal 30 ta rasm."
+            "❌ Foydalanuvchi ma'lumotlari topilmadi."
         )
         return
+
+    pdf_count = row[0] or 0
+    last_date = row[1]
+    premium_until = row[2]
+
+    # Yangi kun bo'lsa, limit yangilanadi
+    if last_date != today:
+        pdf_count = 0
+
+        cursor.execute(
+            "UPDATE users SET pdf_image_count = 0, "
+            "pdf_image_last_date = ? WHERE user_id = ?",
+            (today, user_id)
+        )
+
+        conn.commit()
+
+    # Premium holatini tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    # 🆓 Bepul foydalanuvchi limiti
+    if not premium_active:
+
+        # Bugungi limit allaqachon tugagan bo'lsa
+        if pdf_count >= 5:
+            conn.close()
+
+            await update.message.reply_text(
+                "⚠️ Bugungi bepul PDF rasmlar limitingiz tugagan.\n\n"
+                "📸 Bugun 5 ta rasm ishlatdingiz.\n"
+                "🌅 Ertaga yana 5 ta rasm beriladi.\n\n"
+                "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
+            )
+            return
+
+        # Shu PDF ichidagi rasmlar ham limitdan oshmasin
+        remaining = 5 - pdf_count
+
+        if len(images) > remaining:
+            conn.close()
+
+            await update.message.reply_text(
+                "⚠️ Bugungi bepul limitdan oshib ketdingiz.\n\n"
+                f"📸 Bugun sizda faqat {remaining} ta rasm qoldi.\n"
+                "⭐ Premium orqali ko‘proq rasm ishlatishingiz mumkin."
+            )
+            return
+
+    # Premium uchun maksimal 30 ta rasm
+    if premium_active and len(images) > 30:
+        conn.close()
+
+        await update.message.reply_text(
+            "⛔ Premium foydalanuvchi uchun bir PDFda "
+            "maksimal 30 ta rasm."
+        )
+        return
+
+    conn.close()
 
     try:
         from PIL import Image
@@ -756,7 +930,10 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
 
             image_bytes = await telegram_file.download_as_bytearray()
 
-            img = Image.open(BytesIO(image_bytes)).convert("RGB")
+            img = Image.open(
+                BytesIO(image_bytes)
+            ).convert("RGB")
+
             pil_images.append(img)
 
         if not pil_images:
@@ -765,7 +942,7 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             return
 
-        pdf_path = f"Student_AI_{update.effective_user.id}.pdf"
+        pdf_path = f"Student_AI_{user_id}.pdf"
 
         first_image = pil_images[0]
         other_images = pil_images[1:]
@@ -789,19 +966,55 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
             )
 
+        # 🆓 PDF muvaffaqiyatli yaratilgandan keyin
+        # bepul foydalanuvchining kunlik limitini hisobga olamiz
+        if not premium_active:
+
+            conn = sqlite3.connect("student_ai.db")
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT pdf_image_count, pdf_image_last_date "
+                "FROM users WHERE user_id = ?",
+                (user_id,)
+            )
+
+            row = cursor.fetchone()
+
+            if row:
+                current_count = row[0] or 0
+
+                cursor.execute(
+                    "UPDATE users SET pdf_image_count = ?, "
+                    "pdf_image_last_date = ? WHERE user_id = ?",
+                    (
+                        current_count + len(images),
+                        today,
+                        user_id
+                    )
+                )
+
+                conn.commit()
+
+            conn.close()
+
+        # Rasmlarni yopish
         for img in pil_images:
             try:
                 img.close()
             except Exception:
                 pass
 
+        # PDF faylni o'chirish
         try:
             os.remove(pdf_path)
         except Exception:
             pass
 
+        # Jarayonni tozalash
         context.user_data["pdf_images"] = []
         context.user_data["pdf_collecting"] = False
+        context.user_data["pdf_image_mode"] = False
 
     except Exception as e:
         print("PDF ERROR:", e)
