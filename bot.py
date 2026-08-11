@@ -922,6 +922,78 @@ async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 📄 PDFDAN MATN OLISH
 # ============================================================
 
+# ============================================================
+# 🤖 GEMINI PDF YORDAMCHI
+# ============================================================
+
+def gemini_pdf_request(pdf_path, prompt):
+    try:
+        import base64
+
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+
+        pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        url = (
+            "https://generativelanguage.googleapis.com/"
+            "v1beta/models/gemini-3.6-flash:generateContent"
+        )
+
+        headers = {
+            "x-goog-api-key": GEMINI_API_KEY,
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": "application/pdf",
+                                "data": pdf_base64
+                            }
+                        },
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=120
+        )
+
+        result = response.json()
+
+        print("🔍 GEMINI PDF STATUS:", response.status_code)
+        print("🔍 GEMINI PDF RESPONSE:", result)
+
+        if response.status_code != 200:
+            return None
+
+        if "candidates" not in result:
+            return None
+
+        parts = result["candidates"][0]["content"]["parts"]
+
+        for part in parts:
+            if "text" in part:
+                return part["text"]
+
+        return None
+
+    except Exception as e:
+        print("❌ GEMINI PDF REQUEST ERROR:", e)
+        return None
+
+
 def extract_pdf_text(pdf_path):
     try:
         reader = PdfReader(pdf_path)
@@ -945,7 +1017,6 @@ def extract_pdf_text(pdf_path):
 # ============================================================
 
 async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     pdf_path = context.user_data.get("pdf_file")
 
     if not pdf_path or not os.path.exists(pdf_path):
@@ -955,127 +1026,66 @@ async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "⏳ PDF o‘qilmoqda va AI tahlil qilmoqda..."
+        "⏳ PDF fayl AI tomonidan o‘qilmoqda va tahlil qilinmoqda..."
     )
-
-    pdf_text = extract_pdf_text(pdf_path)
-
-    if not pdf_text:
-        await update.message.reply_text(
-            "❌ PDF ichidan matn topilmadi.\n\n"
-            "Agar PDF skanerlangan rasm ko‘rinishida bo‘lsa, "
-            "hozircha uni matnga aylantira olmayman."
-        )
-        return
-
-    # Juda katta PDF Gemini'ga birdan yuborilmasligi uchun
-    pdf_text = pdf_text[:30000]
 
     lang = context.user_data.get("language", "uz")
 
     if lang == "uz":
         prompt = (
             "Sen Student AI hujjat tahlilchisisan. "
-            "Quyidagi PDF matnini o‘zbek tilida tahlil qil.\n\n"
+            "Berilgan PDF hujjatni to‘liq tahlil qil. "
+            "PDF skanerlangan yoki rasmlar ko‘rinishida bo‘lsa ham "
+            "sahifalardagi ma’lumotlarni imkon qadar o‘qishga harakat qil.\n\n"
             "Javobda:\n"
             "1. Asosiy mavzu\n"
             "2. Muhim fikrlar\n"
-            "3. Muhim ma'lumotlar\n"
+            "3. Muhim ma’lumotlar\n"
             "4. Qisqa xulosa\n"
             "5. Talaba uchun foydali jihatlar\n\n"
-            "Javobni tushunarli va tartibli yoz.\n\n"
-            f"PDF matni:\n{pdf_text}"
+            "Javobni o‘zbek tilida, tushunarli va tartibli yoz."
         )
-
     elif lang == "en":
         prompt = (
             "You are the Student AI document analyst. "
-            "Analyze the following PDF text in English.\n\n"
+            "Analyze the provided PDF completely. "
+            "If the PDF contains scanned pages or images, "
+            "try to read and understand the information in them.\n\n"
             "Include:\n"
             "1. Main topic\n"
             "2. Key points\n"
             "3. Important information\n"
             "4. Short conclusion\n"
             "5. Useful points for a student\n\n"
-            "Keep the answer clear and well organized.\n\n"
-            f"PDF text:\n{pdf_text}"
+            "Answer clearly and in English."
         )
-
     else:
         prompt = (
             "Ты аналитик документов Student AI. "
-            "Проанализируй следующий текст PDF на русском языке.\n\n"
+            "Полностью проанализируй предоставленный PDF. "
+            "Если PDF содержит сканированные страницы или изображения, "
+            "постарайся прочитать и понять информацию на них.\n\n"
             "Укажи:\n"
             "1. Основную тему\n"
             "2. Главные мысли\n"
             "3. Важную информацию\n"
             "4. Краткий вывод\n"
             "5. Полезные моменты для студента\n\n"
-            "Ответ должен быть понятным и структурированным.\n\n"
-            f"Текст PDF:\n{pdf_text}"
+            "Отвечай понятно и структурированно на русском языке."
         )
 
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
-    )
+    answer = gemini_pdf_request(pdf_path, prompt)
 
-    headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-
-        result = response.json()
-
-        print("🔍 PDF ANALYSIS GEMINI:", result)
-
-        if "candidates" in result:
-            answer = (
-                result["candidates"][0]
-                ["content"]["parts"][0]["text"]
-            )
-
-            await update.message.reply_text(
-                "📑 PDF TAHLILI\n\n" + answer
-            )
-
-        else:
-            await update.message.reply_text(
-                "❌ AI PDFni tahlil qila olmadi."
-            )
-
-    except Exception as e:
-
-        print("PDF ANALYSIS ERROR:", e)
-
+    if answer:
         await update.message.reply_text(
-            "❌ PDF tahlil qilishda xatolik yuz berdi."
+            "📑 PDF TAHLILI\n\n" + answer
+        )
+    else:
+        await update.message.reply_text(
+            "❌ AI PDFni tahlil qila olmadi.\n\n"
+            "PDF hajmi yoki Gemini API bilan bog‘liq muammo bo‘lishi mumkin."
         )
 
-
-# ============================================================
-# 📝 PDF XULOSA
-# ============================================================
 
 async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
