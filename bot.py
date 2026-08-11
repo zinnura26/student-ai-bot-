@@ -594,10 +594,7 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             ["🖼️ Сделать PDF из изображений"],
-            ["📑 Анализ PDF"],
             ["📝 Краткое содержание PDF"],
-            ["❓ Задать вопрос по PDF"],
-            ["🌐 Перевести PDF"],
             ["⬅️ Назад"]
         ]
         message = (
@@ -609,7 +606,6 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             ["🖼️ Images to PDF"],
             ["📝 PDF Summary"],
-            ["❓ Ask a question about PDF"],
             ["⬅️ Back"]
         ]
         message = (
@@ -621,7 +617,6 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             ["🖼️ Rasmlarni PDF qilish"],
             ["📝 PDF xulosa"],
-            ["❓ PDFdan savol berish"],
             ["⬅️ Orqaga"]
         ]
         message = (
@@ -1978,139 +1973,9 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["programming_mode"] = False
         context.user_data["translator_mode"] = False
         context.user_data["ai_mode"] = False
+        context.user_data["pdf_question_mode"] = False
 
         await pdf_menu(update, context)
-        return
-
-    # 🖼️ Rasmlarni PDF qilish
-    if text == "🖼️ Rasmlarni PDF qilish":
-        context.user_data["pdf_images"] = []
-        context.user_data["pdf_collecting"] = True
-
-        await update.message.reply_text(
-            "🖼️ Rasmlarni ketma-ket yuboring.\n\n"
-            "📌 Bepul foydalanuvchi uchun: 5 ta rasm.\n"
-            "📌 Rasmlarni yuborib bo‘lgach, «✅ PDF tayyorlash» tugmasini bosing."
-        )
-
-        keyboard = [
-            ["✅ PDF tayyorlash"],
-            ["❌ Bekor qilish"],
-            ["⬅️ Orqaga"]
-        ]
-
-        await update.message.reply_text(
-            "👇 Kerakli amalni tanlang:",
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard,
-                resize_keyboard=True
-            )
-        )
-        return
-
-    # ✅ PDF tayyorlash
-    if text == "✅ PDF tayyorlash":
-        await make_pdf_from_images(update, context)
-        return
-
-    # ❌ PDF bekor qilish
-    if text == "❌ Bekor qilish":
-        await cancel_pdf_images(update, context)
-        return
-
-    # ⬅️ Orqaga
-    if text in [
-        "⬅️ Orqaga",
-        "⬅️ Back",
-        "⬅️ Назад"
-    ]:
-        context.user_data["pdf_mode"] = False
-        context.user_data["pdf_collecting"] = False
-        context.user_data["pdf_images"] = []
-
-        lang = context.user_data.get("language", "uz")
-
-        if lang == "uz":
-            await uz_menu(update)
-        elif lang == "en":
-            await en_menu(update)
-        else:
-            await ru_menu(update)
-
-        return
-
-    # ⭐ Premium
-    if text == "⭐ Premium":
-        await premium(update, context)
-        return
-
-    # 💳 Premium sotib olish
-    if text == "💳 Premium sotib olish":
-        await premium_buy(update, context)
-        return
-
-
-    # 🤖 AI yordamchi
-    if text in [
-        "🤖 AI yordamchi",
-        "🤖 AI Assistant",
-        "🤖 AI Помощник"
-    ]:
-        context.user_data["ai_mode"] = True
-        context.user_data["translator_mode"] = False
-        context.user_data["programming_mode"] = False
-        context.user_data["calculator_mode"] = False
-
-        await ai_assistant(update, context)
-        return
-
-    # 🧮 Kalkulyator
-    if text in [
-        "🧮 Kalkulyator",
-        "🧮 Calculator",
-        "🧮 Калькулятор"
-    ]:
-        context.user_data["calculator_mode"] = True
-        context.user_data["programming_mode"] = False
-        context.user_data["translator_mode"] = False
-        context.user_data["ai_mode"] = False
-
-        await update.message.reply_text(
-            "🧮 Kalkulyator\n\n"
-            "Hisoblamoqchi bo‘lgan ifodangizni yuboring.\n"
-            "Masalan: 25 + 17"
-        )
-        return
-
-    # 📄 PDF / Hujjat
-    if text in [
-        "📄 PDF / Hujjat",
-        "📄 PDF / Documents",
-        "📄 PDF / Документы"
-    ]:
-        context.user_data["pdf_mode"] = True
-        context.user_data["calculator_mode"] = False
-        context.user_data["programming_mode"] = False
-        context.user_data["translator_mode"] = False
-        context.user_data["ai_mode"] = False
-
-        keyboard = [
-            ["🖼️ Rasmlarni PDF qilish"],
-            ["📝 PDF xulosa"],
-            ["❓ PDFdan savol berish"],
-                ["⬅️ Orqaga"]
-        ]
-
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
-
-        await update.message.reply_text(
-            "📄 HUJJATLAR YORDAMCHISI\n\n"
-            "Kerakli xizmatni tanlang:",
-            reply_markup=reply_markup
-        )
         return
 
     # 💻 Dasturlash
@@ -2207,25 +2072,22 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 📄 Agar PDF rejimi yoqilgan bo'lsa
     if context.user_data.get("pdf_mode"):
 
-        # PDF xizmat tugmalari bosilganda savol rejimini o'chiramiz
+        # 📝 PDF XULOSA — 3 TIL
         if text in [
             "📝 PDF xulosa",
-            "❓ PDFdan savol berish",
+            "📝 Краткое содержание PDF",
+            "📝 PDF Summary"
         ]:
-            if text != "❓ PDFdan savol berish":
-                context.user_data["pdf_question_mode"] = False
-
-        # Faqat haqiqiy PDF savoli kelganda AIga yuboramiz
-        if context.user_data.get("pdf_question_mode"):
-            await pdf_question_chat(update, context)
-            return
-
-        if text == "📝 PDF xulosa":
             await pdf_summary(update, context)
             return
 
-        if text == "❓ PDFdan savol berish":
-            await pdf_question(update, context)
+        # 🖼️ RASMLARNI PDF QILISH — 3 TIL
+        if text in [
+            "🖼️ Rasmlarni PDF qilish",
+            "🖼️ Сделать PDF из изображений",
+            "🖼️ Images to PDF"
+        ]:
+            await start_image_to_pdf(update, context)
             return
 
         return
