@@ -608,10 +608,8 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif lang == "en":
         keyboard = [
             ["🖼️ Images to PDF"],
-            ["📑 Analyze PDF"],
             ["📝 PDF Summary"],
             ["❓ Ask a question about PDF"],
-            ["🌐 Translate PDF"],
             ["⬅️ Back"]
         ]
         message = (
@@ -622,10 +620,8 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard = [
             ["🖼️ Rasmlarni PDF qilish"],
-            ["📑 PDF tahlil qilish"],
             ["📝 PDF xulosa"],
             ["❓ PDFdan savol berish"],
-            ["🌐 PDF tarjima qilish"],
             ["⬅️ Orqaga"]
         ]
         message = (
@@ -1376,14 +1372,31 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         context.user_data["pdf_file"] = pdf_path
 
-        await update.message.reply_text(
-            "✅ PDF qabul qilindi!\n\n"
-            "Endi kerakli xizmatni tanlang:\n\n"
-            "📑 PDF tahlil qilish\n"
-            "📝 PDF xulosa\n"
-            "❓ PDFdan savol berish\n"
-            "🌐 PDF tarjima qilish\n"
-        )
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "ru":
+            message = (
+                "✅ PDF принят!\n\n"
+                "Выберите нужную услугу:\n\n"
+                "📝 Краткое содержание PDF\n"
+                "❓ Задать вопрос по PDF"
+            )
+        elif lang == "en":
+            message = (
+                "✅ PDF received!\n\n"
+                "Choose the required service:\n\n"
+                "📝 PDF summary\n"
+                "❓ Ask a question about PDF"
+            )
+        else:
+            message = (
+                "✅ PDF qabul qilindi!\n\n"
+                "Kerakli xizmatni tanlang:\n\n"
+                "📝 PDF xulosa\n"
+                "❓ PDFdan savol berish"
+            )
+
+        await update.message.reply_text(message)
 
     except Exception as e:
         print("PDF UPLOAD ERROR:", e)
@@ -2083,10 +2096,8 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = [
             ["🖼️ Rasmlarni PDF qilish"],
-            ["📑 PDF tahlil qilish"],
             ["📝 PDF xulosa"],
             ["❓ PDFdan savol berish"],
-            ["🌐 PDF tarjima qilish"],
                 ["⬅️ Orqaga"]
         ]
 
@@ -2198,10 +2209,8 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # PDF xizmat tugmalari bosilganda savol rejimini o'chiramiz
         if text in [
-            "📑 PDF tahlil qilish",
             "📝 PDF xulosa",
             "❓ PDFdan savol berish",
-            "🌐 PDF tarjima qilish",
         ]:
             if text != "❓ PDFdan savol berish":
                 context.user_data["pdf_question_mode"] = False
@@ -2211,20 +2220,12 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await pdf_question_chat(update, context)
             return
 
-        if text == "📑 PDF tahlil qilish":
-            await pdf_analysis(update, context)
-            return
-
         if text == "📝 PDF xulosa":
             await pdf_summary(update, context)
             return
 
         if text == "❓ PDFdan savol berish":
             await pdf_question(update, context)
-            return
-
-        if text == "🌐 PDF tarjima qilish":
-            await pdf_translate(update, context)
             return
 
         return
