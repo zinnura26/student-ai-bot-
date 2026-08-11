@@ -15,8 +15,10 @@ from telegram.ext import (
 from dotenv import load_dotenv
 import os
 import sqlite3
-
+import requests
+from pypdf import PdfReader
 load_dotenv()
+
 
 TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -915,16 +917,160 @@ async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+
+# ============================================================
+# 📄 PDFDAN MATN OLISH
+# ============================================================
+
+def extract_pdf_text(pdf_path):
+    try:
+        reader = PdfReader(pdf_path)
+
+        text = ""
+
+        for page in reader.pages:
+            page_text = page.extract_text()
+
+            if page_text:
+                text += page_text + "\n"
+
+        return text.strip()
+
+    except Exception as e:
+        print("PDF TEXT ERROR:", e)
+        return ""
+
 # ============================================================
 # 📑 PDF TAHLIL
 # ============================================================
 
 async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    pdf_path = context.user_data.get("pdf_file")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        await update.message.reply_text(
+            "❌ Avval PDF fayl yuboring."
+        )
+        return
+
     await update.message.reply_text(
-        "📑 PDF tahlil qilish\n\n"
-        "Bu funksiya hozircha tayyorlanmoqda."
+        "⏳ PDF o‘qilmoqda va AI tahlil qilmoqda..."
     )
+
+    pdf_text = extract_pdf_text(pdf_path)
+
+    if not pdf_text:
+        await update.message.reply_text(
+            "❌ PDF ichidan matn topilmadi.\n\n"
+            "Agar PDF skanerlangan rasm ko‘rinishida bo‘lsa, "
+            "hozircha uni matnga aylantira olmayman."
+        )
+        return
+
+    # Juda katta PDF Gemini'ga birdan yuborilmasligi uchun
+    pdf_text = pdf_text[:30000]
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI hujjat tahlilchisisan. "
+            "Quyidagi PDF matnini o‘zbek tilida tahlil qil.\n\n"
+            "Javobda:\n"
+            "1. Asosiy mavzu\n"
+            "2. Muhim fikrlar\n"
+            "3. Muhim ma'lumotlar\n"
+            "4. Qisqa xulosa\n"
+            "5. Talaba uchun foydali jihatlar\n\n"
+            "Javobni tushunarli va tartibli yoz.\n\n"
+            f"PDF matni:\n{pdf_text}"
+        )
+
+    elif lang == "en":
+        prompt = (
+            "You are the Student AI document analyst. "
+            "Analyze the following PDF text in English.\n\n"
+            "Include:\n"
+            "1. Main topic\n"
+            "2. Key points\n"
+            "3. Important information\n"
+            "4. Short conclusion\n"
+            "5. Useful points for a student\n\n"
+            "Keep the answer clear and well organized.\n\n"
+            f"PDF text:\n{pdf_text}"
+        )
+
+    else:
+        prompt = (
+            "Ты аналитик документов Student AI. "
+            "Проанализируй следующий текст PDF на русском языке.\n\n"
+            "Укажи:\n"
+            "1. Основную тему\n"
+            "2. Главные мысли\n"
+            "3. Важную информацию\n"
+            "4. Краткий вывод\n"
+            "5. Полезные моменты для студента\n\n"
+            "Ответ должен быть понятным и структурированным.\n\n"
+            f"Текст PDF:\n{pdf_text}"
+        )
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        print("🔍 PDF ANALYSIS GEMINI:", result)
+
+        if "candidates" in result:
+            answer = (
+                result["candidates"][0]
+                ["content"]["parts"][0]["text"]
+            )
+
+            await update.message.reply_text(
+                "📑 PDF TAHLILI\n\n" + answer
+            )
+
+        else:
+            await update.message.reply_text(
+                "❌ AI PDFni tahlil qila olmadi."
+            )
+
+    except Exception as e:
+
+        print("PDF ANALYSIS ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDF tahlil qilishda xatolik yuz berdi."
+        )
 
 
 # ============================================================
@@ -933,23 +1079,284 @@ async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    pdf_path = context.user_data.get("pdf_file")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        await update.message.reply_text(
+            "❌ Avval PDF fayl yuboring."
+        )
+        return
+
     await update.message.reply_text(
-        "📝 PDF xulosa\n\n"
-        "Bu funksiya hozircha tayyorlanmoqda."
+        "⏳ PDF o‘qilmoqda va qisqa xulosa tayyorlanmoqda..."
     )
+
+    pdf_text = extract_pdf_text(pdf_path)
+
+    if not pdf_text:
+        await update.message.reply_text(
+            "❌ PDF ichidan matn topilmadi."
+        )
+        return
+
+    pdf_text = pdf_text[:30000]
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI yordamchisisan. "
+            "Quyidagi PDF matnidan talaba uchun tushunarli, "
+            "aniq va mazmunli qisqa xulosa tayyorla.\n\n"
+            "Eng muhim fikrlarni yo‘qotma. "
+            "Keraksiz ma'lumotlarni qo‘shma.\n\n"
+            f"PDF matni:\n{pdf_text}"
+        )
+
+    elif lang == "en":
+        prompt = (
+            "You are the Student AI assistant. "
+            "Create a clear and useful summary of the following PDF "
+            "for a student. Keep the important ideas and remove "
+            "unnecessary details.\n\n"
+            f"PDF text:\n{pdf_text}"
+        )
+
+    else:
+        prompt = (
+            "Ты помощник Student AI. "
+            "Сделай понятное и содержательное краткое резюме "
+            "следующего PDF для студента. "
+            "Сохрани главные мысли и убери ненужные детали.\n\n"
+            f"Текст PDF:\n{pdf_text}"
+        )
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        print("🔍 PDF SUMMARY GEMINI:", result)
+
+        if "candidates" in result:
+            answer = (
+                result["candidates"][0]
+                ["content"]["parts"][0]["text"]
+            )
+
+            await update.message.reply_text(
+                "📝 PDF XULOSA\n\n" + answer
+            )
+
+        else:
+            await update.message.reply_text(
+                "❌ AI PDF uchun xulosa tayyorlay olmadi."
+            )
+
+    except Exception as e:
+
+        print("PDF SUMMARY ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDF xulosa qilishda xatolik yuz berdi."
+        )
 
 
 # ============================================================
-# ❓ PDFDAN SAVOL
+# ❓ PDFDAN SAVOL BERISH
 # ============================================================
 
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    pdf_path = context.user_data.get("pdf_file")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        await update.message.reply_text(
+            "❌ Avval PDF fayl yuboring."
+        )
+        return
+
+    context.user_data["pdf_question_mode"] = True
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        message = (
+            "❓ PDF bo‘yicha savolingizni yuboring.\n\n"
+            "Masalan:\n"
+            "👉 Bu hujjatning asosiy mavzusi nima?\n"
+            "👉 3-bobda nima haqida gapirilgan?"
+        )
+
+    elif lang == "en":
+        message = (
+            "❓ Send your question about the PDF.\n\n"
+            "For example:\n"
+            "👉 What is the main topic of this document?\n"
+            "👉 What is discussed in chapter 3?"
+        )
+
+    else:
+        message = (
+            "❓ Отправьте свой вопрос по PDF.\n\n"
+            "Например:\n"
+            "👉 Какова основная тема документа?\n"
+            "👉 О чём говорится в 3-й главе?"
+        )
+
+    await update.message.reply_text(message)
+
+# ============================================================
+# ❓ PDF SAVOLIGA AI JAVOB
+# ============================================================
+
+async def pdf_question_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    pdf_path = context.user_data.get("pdf_file")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        context.user_data["pdf_question_mode"] = False
+
+        await update.message.reply_text(
+            "❌ PDF fayl topilmadi. Avval PDF yuboring."
+        )
+        return
+
+    question = update.message.text
+
     await update.message.reply_text(
-        "❓ PDFdan savol berish\n\n"
-        "Bu funksiya hozircha tayyorlanmoqda."
+        "⏳ PDF va savolingiz AI tomonidan tahlil qilinmoqda..."
     )
 
+    pdf_text = extract_pdf_text(pdf_path)
+
+    if not pdf_text:
+        await update.message.reply_text(
+            "❌ PDF ichidan matn topilmadi."
+        )
+        return
+
+    pdf_text = pdf_text[:30000]
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI yordamchisisan. "
+            "Quyidagi PDF matniga asoslanib foydalanuvchining "
+            "savoliga o‘zbek tilida aniq javob ber.\n\n"
+            "Agar javob PDFda bo‘lmasa, buni aniq ayt. "
+            "O‘zingdan ma'lumot to‘qib chiqarmagin.\n\n"
+            f"PDF matni:\n{pdf_text}\n\n"
+            f"Foydalanuvchi savoli:\n{question}"
+        )
+
+    elif lang == "en":
+        prompt = (
+            "You are the Student AI assistant. "
+            "Answer the user's question based only on the PDF text.\n\n"
+            "If the answer is not in the PDF, say so clearly. "
+            "Do not invent information.\n\n"
+            f"PDF text:\n{pdf_text}\n\n"
+            f"User question:\n{question}"
+        )
+
+    else:
+        prompt = (
+            "Ты помощник Student AI. "
+            "Ответь на вопрос пользователя только на основе текста PDF.\n\n"
+            "Если ответа в PDF нет, скажи об этом прямо. "
+            "Не выдумывай информацию.\n\n"
+            f"Текст PDF:\n{pdf_text}\n\n"
+            f"Вопрос пользователя:\n{question}"
+        )
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        print("🔍 PDF QUESTION GEMINI:", result)
+
+        if "candidates" in result:
+            answer = (
+                result["candidates"][0]
+                ["content"]["parts"][0]["text"]
+            )
+
+            await update.message.reply_text(
+                "❓ PDF SAVOLIGA JAVOB\n\n" + answer
+            )
+
+        else:
+            await update.message.reply_text(
+                "❌ AI javob bera olmadi."
+            )
+
+    except Exception as e:
+
+        print("PDF QUESTION ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDF savoliga javob berishda xatolik yuz berdi."
+        )
+
+    finally:
+        context.user_data["pdf_question_mode"] = False
 
 # ============================================================
 # 🌐 PDF TARJIMA
@@ -957,15 +1364,156 @@ async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pdf_translate(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    pdf_path = context.user_data.get("pdf_file")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        await update.message.reply_text(
+            "❌ Avval PDF fayl yuboring."
+        )
+        return
+
     await update.message.reply_text(
-        "🌐 PDF tarjima qilish\n\n"
-        "Bu funksiya hozircha tayyorlanmoqda."
+        "🌐 PDF matni o‘qilmoqda va tarjima qilinmoqda..."
     )
 
+    pdf_text = extract_pdf_text(pdf_path)
+
+    if not pdf_text:
+        await update.message.reply_text(
+            "❌ PDF ichidan matn topilmadi."
+        )
+        return
+
+    pdf_text = pdf_text[:30000]
+
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "uz":
+        target_language = "o‘zbek tili"
+
+    elif lang == "en":
+        target_language = "English"
+
+    else:
+        target_language = "русский язык"
+
+    prompt = (
+        f"Translate the following PDF text into {target_language}.\n\n"
+        "Preserve the meaning and structure as much as possible. "
+        "Do not add explanations or comments. "
+        "Return only the translated text.\n\n"
+        f"PDF text:\n{pdf_text}"
+    )
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.5-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    try:
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        print("🔍 PDF TRANSLATE GEMINI:", result)
+
+        if "candidates" in result:
+
+            answer = (
+                result["candidates"][0]
+                ["content"]["parts"][0]["text"]
+            )
+
+            await update.message.reply_text(
+                "🌐 PDF TARJIMA\n\n" + answer
+            )
+
+        else:
+
+            await update.message.reply_text(
+                "❌ PDF tarjima qilinmadi."
+            )
+
+    except Exception as e:
+
+        print("PDF TRANSLATE ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDF tarjima qilishda xatolik yuz berdi."
+        )
 
 # ============================================================
 # 📄 PDF → RASMLAR
 # ============================================================
+
+# ============================================================
+# 📄 PDF FAYLNI QABUL QILISH
+# ============================================================
+
+async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
+
+    if not document:
+        return
+
+    if not document.file_name.lower().endswith(".pdf"):
+        await update.message.reply_text(
+            "❌ Iltimos, faqat PDF fayl yuboring."
+        )
+        return
+
+    try:
+        await update.message.reply_text(
+            "⏳ PDF fayl qabul qilinmoqda..."
+        )
+
+        file = await context.bot.get_file(document.file_id)
+
+        pdf_path = f"uploaded_{update.effective_user.id}.pdf"
+
+        await file.download_to_drive(pdf_path)
+
+        context.user_data["pdf_file"] = pdf_path
+
+        await update.message.reply_text(
+            "✅ PDF qabul qilindi!\n\n"
+            "Endi kerakli xizmatni tanlang:\n\n"
+            "📑 PDF tahlil qilish\n"
+            "📝 PDF xulosa\n"
+            "❓ PDFdan savol berish\n"
+            "🌐 PDF tarjima qilish\n"
+            "📄 PDF → Rasmlar"
+        )
+
+    except Exception as e:
+        print("PDF UPLOAD ERROR:", e)
+
+        await update.message.reply_text(
+            "❌ PDFni qabul qilishda xatolik yuz berdi."
+        )
 
 async def pdf_to_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -1778,6 +2326,31 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 📄 Agar PDF rejimi yoqilgan bo'lsa
     if context.user_data.get("pdf_mode"):
+
+        if context.user_data.get("pdf_question_mode"):
+            await pdf_question_chat(update, context)
+            return
+
+        if text == "📑 PDF tahlil qilish":
+            await pdf_analysis(update, context)
+            return
+
+        if text == "📝 PDF xulosa":
+            await pdf_summary(update, context)
+            return
+
+        if text == "❓ PDFdan savol berish":
+            await pdf_question(update, context)
+            return
+
+        if text == "🌐 PDF tarjima qilish":
+            await pdf_translate(update, context)
+            return
+
+        if text == "📄 PDF → Rasmlar":
+            await pdf_to_images(update, context)
+            return
+
         return
 
     # 💻 Agar dasturlash rejimi yoqilgan bo'lsa
@@ -1799,6 +2372,13 @@ app.add_handler(
     MessageHandler(
         filters.PHOTO,
         pdf_photo_handler
+    )
+)
+
+app.add_handler(
+    MessageHandler(
+        filters.Document.PDF,
+        pdf_document_handler
     )
 )
 

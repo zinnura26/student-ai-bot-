@@ -1,2 +1,4 @@
 .env
+student_ai.db
 __pycache__/
+*.pyc
