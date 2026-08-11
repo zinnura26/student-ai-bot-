@@ -595,7 +595,6 @@ async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["📝 PDF xulosa"],
         ["❓ PDFdan savol berish"],
         ["🌐 PDF tarjima qilish"],
-        ["📄 PDF → Rasmlar"],
         ["⬅️ Orqaga"]
     ]
 
@@ -1098,110 +1097,52 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "⏳ PDF o‘qilmoqda va qisqa xulosa tayyorlanmoqda..."
+        "⏳ PDF fayl AI tomonidan o‘qilmoqda va qisqa xulosa tayyorlanmoqda..."
     )
-
-    pdf_text = extract_pdf_text(pdf_path)
-
-    if not pdf_text:
-        await update.message.reply_text(
-            "❌ PDF ichidan matn topilmadi."
-        )
-        return
-
-    pdf_text = pdf_text[:30000]
 
     lang = context.user_data.get("language", "uz")
 
     if lang == "uz":
         prompt = (
             "Sen Student AI yordamchisisan. "
-            "Quyidagi PDF matnidan talaba uchun tushunarli, "
-            "aniq va mazmunli qisqa xulosa tayyorla.\n\n"
-            "Eng muhim fikrlarni yo‘qotma. "
-            "Keraksiz ma'lumotlarni qo‘shma.\n\n"
-            f"PDF matni:\n{pdf_text}"
+            "Berilgan PDF hujjatning mazmunini tahlil qilib, "
+            "talaba uchun tushunarli va mazmunli qisqa xulosa tayyorla.\n\n"
+            "Asosiy fikrlar, muhim ma’lumotlar va yakuniy xulosani ber. "
+            "PDF skanerlangan bo‘lsa yoki rasmlar va jadvallar mavjud bo‘lsa, "
+            "ularni ham imkon qadar tahlil qil.\n\n"
+            "Javobni o‘zbek tilida yoz."
         )
-
     elif lang == "en":
         prompt = (
             "You are the Student AI assistant. "
-            "Create a clear and useful summary of the following PDF "
-            "for a student. Keep the important ideas and remove "
-            "unnecessary details.\n\n"
-            f"PDF text:\n{pdf_text}"
+            "Analyze the provided PDF and create a clear, useful summary "
+            "for a student. Include the main ideas, important information "
+            "and final conclusion. If the PDF contains scanned pages, "
+            "images or tables, analyze them when possible. "
+            "Answer in English."
         )
-
     else:
         prompt = (
             "Ты помощник Student AI. "
-            "Сделай понятное и содержательное краткое резюме "
-            "следующего PDF для студента. "
-            "Сохрани главные мысли и убери ненужные детали.\n\n"
-            f"Текст PDF:\n{pdf_text}"
+            "Проанализируй предоставленный PDF и сделай понятное "
+            "и содержательное краткое резюме для студента. "
+            "Укажи главные мысли, важную информацию и вывод. "
+            "Если PDF содержит сканированные страницы, изображения "
+            "или таблицы, постарайся их также проанализировать. "
+            "Отвечай на русском языке."
         )
 
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
-    )
+    answer = gemini_pdf_request(pdf_path, prompt)
 
-    headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-
-        result = response.json()
-
-        print("🔍 PDF SUMMARY GEMINI:", result)
-
-        if "candidates" in result:
-            answer = (
-                result["candidates"][0]
-                ["content"]["parts"][0]["text"]
-            )
-
-            await update.message.reply_text(
-                "📝 PDF XULOSA\n\n" + answer
-            )
-
-        else:
-            await update.message.reply_text(
-                "❌ AI PDF uchun xulosa tayyorlay olmadi."
-            )
-
-    except Exception as e:
-
-        print("PDF SUMMARY ERROR:", e)
-
+    if answer:
         await update.message.reply_text(
-            "❌ PDF xulosa qilishda xatolik yuz berdi."
+            "📝 PDF XULOSA\n\n" + answer
+        )
+    else:
+        await update.message.reply_text(
+            "❌ AI PDF uchun xulosa tayyorlay olmadi."
         )
 
-
-# ============================================================
-# ❓ PDFDAN SAVOL BERISH
-# ============================================================
 
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -1265,108 +1206,54 @@ async def pdf_question_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⏳ PDF va savolingiz AI tomonidan tahlil qilinmoqda..."
     )
 
-    pdf_text = extract_pdf_text(pdf_path)
-
-    if not pdf_text:
-        await update.message.reply_text(
-            "❌ PDF ichidan matn topilmadi."
-        )
-        return
-
-    pdf_text = pdf_text[:30000]
-
     lang = context.user_data.get("language", "uz")
 
     if lang == "uz":
         prompt = (
             "Sen Student AI yordamchisisan. "
-            "Quyidagi PDF matniga asoslanib foydalanuvchining "
-            "savoliga o‘zbek tilida aniq javob ber.\n\n"
-            "Agar javob PDFda bo‘lmasa, buni aniq ayt. "
-            "O‘zingdan ma'lumot to‘qib chiqarmagin.\n\n"
-            f"PDF matni:\n{pdf_text}\n\n"
-            f"Foydalanuvchi savoli:\n{question}"
+            "Foydalanuvchining savoliga faqat berilgan PDF hujjat "
+            "asosida javob ber. PDFdagi matn, rasmlar, jadvallar va "
+            "skanerlangan sahifalarni imkon qadar tahlil qil.\n\n"
+            "Agar javob PDFda mavjud bo‘lmasa, buni aniq ayt. "
+            "O‘zingdan ma’lumot to‘qib chiqarmagin.\n\n"
+            f"Foydalanuvchi savoli:\n{question}\n\n"
+            "Javobni o‘zbek tilida yoz."
         )
-
     elif lang == "en":
         prompt = (
             "You are the Student AI assistant. "
-            "Answer the user's question based only on the PDF text.\n\n"
+            "Answer the user's question using only the provided PDF. "
+            "Analyze text, images, tables and scanned pages when possible. "
             "If the answer is not in the PDF, say so clearly. "
             "Do not invent information.\n\n"
-            f"PDF text:\n{pdf_text}\n\n"
-            f"User question:\n{question}"
+            f"User question:\n{question}\n\n"
+            "Answer in English."
         )
-
     else:
         prompt = (
             "Ты помощник Student AI. "
-            "Ответь на вопрос пользователя только на основе текста PDF.\n\n"
+            "Ответь на вопрос пользователя только на основе "
+            "предоставленного PDF. Анализируй текст, изображения, "
+            "таблицы и сканированные страницы, если это возможно. "
             "Если ответа в PDF нет, скажи об этом прямо. "
             "Не выдумывай информацию.\n\n"
-            f"Текст PDF:\n{pdf_text}\n\n"
-            f"Вопрос пользователя:\n{question}"
+            f"Вопрос пользователя:\n{question}\n\n"
+            "Отвечай на русском языке."
         )
 
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
-    )
+    answer = gemini_pdf_request(pdf_path, prompt)
 
-    headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-
-        result = response.json()
-
-        print("🔍 PDF QUESTION GEMINI:", result)
-
-        if "candidates" in result:
-            answer = (
-                result["candidates"][0]
-                ["content"]["parts"][0]["text"]
-            )
-
-            await update.message.reply_text(
-                "❓ PDF SAVOLIGA JAVOB\n\n" + answer
-            )
-
-        else:
-            await update.message.reply_text(
-                "❌ AI javob bera olmadi."
-            )
-
-    except Exception as e:
-
-        print("PDF QUESTION ERROR:", e)
-
+    if answer:
         await update.message.reply_text(
-            "❌ PDF savoliga javob berishda xatolik yuz berdi."
+            "❓ PDF SAVOLIGA JAVOB\n\n" + answer
+        )
+    else:
+        await update.message.reply_text(
+            "❌ AI PDF savoliga javob bera olmadi."
         )
 
-    finally:
-        context.user_data["pdf_question_mode"] = False
+    context.user_data["pdf_question_mode"] = False
+
 
 # ============================================================
 # 🌐 PDF TARJIMA
@@ -1383,97 +1270,37 @@ async def pdf_translate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "🌐 PDF matni o‘qilmoqda va tarjima qilinmoqda..."
+        "🌐 PDF fayl AI tomonidan o‘qilmoqda va tarjima qilinmoqda..."
     )
-
-    pdf_text = extract_pdf_text(pdf_path)
-
-    if not pdf_text:
-        await update.message.reply_text(
-            "❌ PDF ichidan matn topilmadi."
-        )
-        return
-
-    pdf_text = pdf_text[:30000]
 
     lang = context.user_data.get("language", "uz")
 
     if lang == "uz":
         target_language = "o‘zbek tili"
-
     elif lang == "en":
         target_language = "English"
-
     else:
         target_language = "русский язык"
 
     prompt = (
-        f"Translate the following PDF text into {target_language}.\n\n"
+        f"Translate the provided PDF document into {target_language}. "
         "Preserve the meaning and structure as much as possible. "
+        "Read text from scanned pages, images and tables when possible. "
         "Do not add explanations or comments. "
-        "Return only the translated text.\n\n"
-        f"PDF text:\n{pdf_text}"
+        "Return only the translated content."
     )
 
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
-    )
+    answer = gemini_pdf_request(pdf_path, prompt)
 
-    headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ]
-    }
-
-    try:
-
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
-
-        result = response.json()
-
-        print("🔍 PDF TRANSLATE GEMINI:", result)
-
-        if "candidates" in result:
-
-            answer = (
-                result["candidates"][0]
-                ["content"]["parts"][0]["text"]
-            )
-
-            await update.message.reply_text(
-                "🌐 PDF TARJIMA\n\n" + answer
-            )
-
-        else:
-
-            await update.message.reply_text(
-                "❌ PDF tarjima qilinmadi."
-            )
-
-    except Exception as e:
-
-        print("PDF TRANSLATE ERROR:", e)
-
+    if answer:
         await update.message.reply_text(
-            "❌ PDF tarjima qilishda xatolik yuz berdi."
+            "🌐 PDF TARJIMA\n\n" + answer
         )
+    else:
+        await update.message.reply_text(
+            "❌ PDF tarjima qilinmadi."
+        )
+
 
 # ============================================================
 # 📄 PDF → RASMLAR
@@ -1515,7 +1342,6 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             "📝 PDF xulosa\n"
             "❓ PDFdan savol berish\n"
             "🌐 PDF tarjima qilish\n"
-            "📄 PDF → Rasmlar"
         )
 
     except Exception as e:
@@ -1524,13 +1350,6 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "❌ PDFni qabul qilishda xatolik yuz berdi."
         )
-
-async def pdf_to_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    await update.message.reply_text(
-        "📄 PDF → Rasmlar\n\n"
-        "Bu funksiya hozircha tayyorlanmoqda."
-    )
 
 async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
     images = context.user_data.get("pdf_images", [])
@@ -2227,8 +2046,7 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ["📝 PDF xulosa"],
             ["❓ PDFdan savol berish"],
             ["🌐 PDF tarjima qilish"],
-            ["📄 PDF → Rasmlar"],
-            ["⬅️ Orqaga"]
+                ["⬅️ Orqaga"]
         ]
 
         reply_markup = ReplyKeyboardMarkup(
@@ -2343,7 +2161,6 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📝 PDF xulosa",
             "❓ PDFdan savol berish",
             "🌐 PDF tarjima qilish",
-            "📄 PDF → Rasmlar"
         ]:
             if text != "❓ PDFdan savol berish":
                 context.user_data["pdf_question_mode"] = False
@@ -2367,10 +2184,6 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if text == "🌐 PDF tarjima qilish":
             await pdf_translate(update, context)
-            return
-
-        if text == "📄 PDF → Rasmlar":
-            await pdf_to_images(update, context)
             return
 
         return
