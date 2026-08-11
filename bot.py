@@ -2337,6 +2337,18 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 📄 Agar PDF rejimi yoqilgan bo'lsa
     if context.user_data.get("pdf_mode"):
 
+        # PDF xizmat tugmalari bosilganda savol rejimini o'chiramiz
+        if text in [
+            "📑 PDF tahlil qilish",
+            "📝 PDF xulosa",
+            "❓ PDFdan savol berish",
+            "🌐 PDF tarjima qilish",
+            "📄 PDF → Rasmlar"
+        ]:
+            if text != "❓ PDFdan savol berish":
+                context.user_data["pdf_question_mode"] = False
+
+        # Faqat haqiqiy PDF savoli kelganda AIga yuboramiz
         if context.user_data.get("pdf_question_mode"):
             await pdf_question_chat(update, context)
             return
