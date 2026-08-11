@@ -936,7 +936,7 @@ def gemini_pdf_request(pdf_path, prompt):
 
         url = (
             "https://generativelanguage.googleapis.com/"
-            "v1beta/models/gemini-3.6-flash:generateContent"
+            "v1beta/models/gemini-3.5-flash:generateContent"
         )
 
         headers = {
@@ -949,13 +949,13 @@ def gemini_pdf_request(pdf_path, prompt):
                 {
                     "parts": [
                         {
+                            "text": prompt
+                        },
+                        {
                             "inline_data": {
                                 "mime_type": "application/pdf",
                                 "data": pdf_base64
                             }
-                        },
-                        {
-                            "text": prompt
                         }
                     ]
                 }
@@ -977,10 +977,13 @@ def gemini_pdf_request(pdf_path, prompt):
         if response.status_code != 200:
             return None
 
-        if "candidates" not in result:
+        candidates = result.get("candidates")
+
+        if not candidates:
             return None
 
-        parts = result["candidates"][0]["content"]["parts"]
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
 
         for part in parts:
             if "text" in part:
