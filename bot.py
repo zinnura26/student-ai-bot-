@@ -589,18 +589,52 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        ["🖼️ Rasmlarni PDF qilish"],
-        ["📑 PDF tahlil qilish"],
-        ["📝 PDF xulosa"],
-        ["❓ PDFdan savol berish"],
-        ["🌐 PDF tarjima qilish"],
-        ["⬅️ Orqaga"]
-    ]
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "ru":
+        keyboard = [
+            ["🖼️ Сделать PDF из изображений"],
+            ["📑 Анализ PDF"],
+            ["📝 Краткое содержание PDF"],
+            ["❓ Задать вопрос по PDF"],
+            ["🌐 Перевести PDF"],
+            ["⬅️ Назад"]
+        ]
+        message = (
+            "📄 ПОМОЩНИК ПО ДОКУМЕНТАМ\n\n"
+            "Выберите нужную услугу:"
+        )
+
+    elif lang == "en":
+        keyboard = [
+            ["🖼️ Images to PDF"],
+            ["📑 Analyze PDF"],
+            ["📝 PDF Summary"],
+            ["❓ Ask a question about PDF"],
+            ["🌐 Translate PDF"],
+            ["⬅️ Back"]
+        ]
+        message = (
+            "📄 DOCUMENT ASSISTANT\n\n"
+            "Choose the required service:"
+        )
+
+    else:
+        keyboard = [
+            ["🖼️ Rasmlarni PDF qilish"],
+            ["📑 PDF tahlil qilish"],
+            ["📝 PDF xulosa"],
+            ["❓ PDFdan savol berish"],
+            ["🌐 PDF tarjima qilish"],
+            ["⬅️ Orqaga"]
+        ]
+        message = (
+            "📄 HUJJATLAR YORDAMCHISI\n\n"
+            "Kerakli xizmatni tanlang:"
+        )
 
     await update.message.reply_text(
-        "📄 HUJJATLAR YORDAMCHISI\n\n"
-        "Kerakli xizmatni tanlang:",
+        message,
         reply_markup=ReplyKeyboardMarkup(
             keyboard,
             resize_keyboard=True
@@ -975,11 +1009,15 @@ def gemini_pdf_request(pdf_path, prompt):
         print("🔍 GEMINI PDF RESPONSE:", result)
 
         if response.status_code != 200:
+            print("❌ GEMINI PDF HTTP ERROR:", response.status_code)
+            print("❌ GEMINI PDF ERROR BODY:", result)
             return None
 
         candidates = result.get("candidates")
 
         if not candidates:
+            print("❌ GEMINI PDF: candidates topilmadi")
+            print("❌ GEMINI PDF FULL RESPONSE:", result)
             return None
 
         content = candidates[0].get("content", {})
