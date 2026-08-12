@@ -970,29 +970,24 @@ def gemini_pdf_request(pdf_path, prompt):
             print("❌ GEMINI_API_KEY topilmadi")
             return None
 
-        # 📄 PDFdan matnni olish
-        pdf_text = extract_pdf_text(pdf_path)
-
-        if not pdf_text:
-            print("❌ PDF ichidan matn olinmadi")
+        if not os.path.exists(pdf_path):
+            print("❌ PDF fayl topilmadi:", pdf_path)
             return None
 
-        # Juda katta PDF matnini cheklaymiz
-        max_chars = 50000
-        if len(pdf_text) > max_chars:
-            print(
-                f"⚠️ PDF matni juda katta: {len(pdf_text)} belgi. "
-                f"{max_chars} belgigacha qisqartiriladi."
-            )
-            pdf_text = pdf_text[:max_chars]
+        import base64
+
+        with open(pdf_path, "rb") as f:
+            pdf_data = base64.b64encode(f.read()).decode("utf-8")
 
         full_prompt = (
             prompt
             + "\n\n"
-            + "QUYIDA PDF HUJJATIDAN OLINGAN MATN:\n"
-            + "==============================\n"
-            + pdf_text
-            + "\n==============================\n"
+            + "MUHIM: PDF faylni to‘g‘ridan-to‘g‘ri tahlil qil. "
+            + "Agar PDF oddiy matnli bo‘lsa, matnini o‘qi. "
+            + "Agar PDF skanerlangan yoki sahifalari rasm ko‘rinishida bo‘lsa, "
+            + "sahifalardagi matn va ma’lumotlarni rasmdan o‘qi. "
+            + "PDF qaysi tilda bo‘lishidan qat’i nazar, yuqoridagi promptda "
+            + "ko‘rsatilgan javob tilida javob ber."
         )
 
         url = (
@@ -1009,22 +1004,26 @@ def gemini_pdf_request(pdf_path, prompt):
             "contents": [
                 {
                     "parts": [
+                        {"text": full_prompt},
                         {
-                            "text": full_prompt
+                            "inline_data": {
+                                "mime_type": "application/pdf",
+                                "data": pdf_data
+                            }
                         }
                     ]
                 }
             ]
         }
 
-        print("⏳ Gemini'ga PDF MATNI yuborilmoqda...")
-        print("📄 PDF matn uzunligi:", len(pdf_text))
+        print("⏳ Gemini'ga PDF faylning o‘zi yuborilmoqda...")
+        print("📄 PDF hajmi:", os.path.getsize(pdf_path), "bayt")
 
         response = requests.post(
             url,
             headers=headers,
             json=data,
-            timeout=120
+            timeout=180
         )
 
         print("🔍 GEMINI PDF STATUS:", response.status_code)
@@ -1036,20 +1035,20 @@ def gemini_pdf_request(pdf_path, prompt):
             print("❌ RESPONSE:", response.text[:2000])
             return None
 
-        print("🔍 GEMINI PDF RESPONSE:", result)
-
         if response.status_code != 200:
             print("❌ GEMINI PDF HTTP ERROR:", response.status_code)
+            print("❌ GEMINI PDF RESPONSE:", result)
 
             if response.status_code == 429:
                 print("⚠️ GEMINI QUOTA/RATE LIMIT: 429")
 
             return None
 
-        candidates = result.get("candidates")
+        candidates = result.get("candidates", [])
 
         if not candidates:
             print("❌ GEMINI PDF: candidates topilmadi")
+            print("🔍 RESPONSE:", result)
             return None
 
         content = candidates[0].get("content", {})
@@ -1061,18 +1060,14 @@ def gemini_pdf_request(pdf_path, prompt):
             if "text" in part:
                 texts.append(part["text"])
 
-        if not texts:
-            print("❌ GEMINI PDF: text topilmadi")
-            return None
-
         answer = "\n".join(texts).strip()
 
         if not answer:
-            print("❌ GEMINI PDF: bo'sh javob")
+            print("❌ GEMINI PDF: bo‘sh javob")
+            print("🔍 RESPONSE:", result)
             return None
 
         print("✅ GEMINI PDF XULOSA TAYYOR")
-
         return answer
 
     except requests.exceptions.Timeout:
@@ -1088,108 +1083,10 @@ def gemini_pdf_request(pdf_path, prompt):
         return None
 
 
-def extract_pdf_text(pdf_path):
-    try:
-        reader = PdfReader(pdf_path)
-
-        text = ""
-
-        for page in reader.pages:
-            page_text = page.extract_text()
-
-            if page_text:
-                text += page_text + "\n"
-
-        return text.strip()
-
-    except Exception as e:
-        print("PDF TEXT ERROR:", e)
-        return ""
-
-# ============================================================
-# 📑 PDF TAHLIL
-# ============================================================
-
-async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pdf_path = context.user_data.get("pdf_file")
-
-    if not pdf_path or not os.path.exists(pdf_path):
-        await update.message.reply_text(
-            "❌ Avval PDF fayl yuboring."
-        )
-        return
-
-    await update.message.reply_text(
-        "⏳ PDF fayl AI tomonidan o‘qilmoqda va tahlil qilinmoqda..."
-    )
-
-    lang = context.user_data.get("language", "uz")
-
-    if lang == "uz":
-        prompt = (
-            "Sen Student AI hujjat tahlilchisisan. "
-            "Berilgan PDF hujjatni to‘liq tahlil qil. "
-            "PDF skanerlangan yoki rasmlar ko‘rinishida bo‘lsa ham "
-            "sahifalardagi ma’lumotlarni imkon qadar o‘qishga harakat qil.\n\n"
-            "Javobda:\n"
-            "1. Asosiy mavzu\n"
-            "2. Muhim fikrlar\n"
-            "3. Muhim ma’lumotlar\n"
-            "4. Qisqa xulosa\n"
-            "5. Talaba uchun foydali jihatlar\n\n"
-            "Javobni o‘zbek tilida, tushunarli va tartibli yoz."
-        )
-    elif lang == "en":
-        prompt = (
-            "You are the Student AI document analyst. "
-            "Analyze the provided PDF completely. "
-            "If the PDF contains scanned pages or images, "
-            "try to read and understand the information in them.\n\n"
-            "Include:\n"
-            "1. Main topic\n"
-            "2. Key points\n"
-            "3. Important information\n"
-            "4. Short conclusion\n"
-            "5. Useful points for a student\n\n"
-            "Answer clearly and in English."
-        )
-    else:
-        prompt = (
-            "Ты аналитик документов Student AI. "
-            "Полностью проанализируй предоставленный PDF. "
-            "Если PDF содержит сканированные страницы или изображения, "
-            "постарайся прочитать и понять информацию на них.\n\n"
-            "Укажи:\n"
-            "1. Основную тему\n"
-            "2. Главные мысли\n"
-            "3. Важную информацию\n"
-            "4. Краткий вывод\n"
-            "5. Полезные моменты для студента\n\n"
-            "Отвечай понятно и структурированно на русском языке."
-        )
-
-    answer = gemini_pdf_request(pdf_path, prompt)
-
-    if answer:
-        await update.message.reply_text(
-            "📑 PDF TAHLILI\n\n" + answer
-        )
-    else:
-        await update.message.reply_text(
-            "❌ AI PDFni tahlil qila olmadi.\n\n"
-            "PDF hajmi yoki Gemini API bilan bog‘liq muammo bo‘lishi mumkin."
-        )
-
-
 async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user_id = update.effective_user.id
     lang = context.user_data.get("language", "uz")
     today = __import__("datetime").date.today().isoformat()
-
-    # ============================================================
-    # 📄 PDF FAYLNI TEKSHIRISH
-    # ============================================================
 
     pdf_path = context.user_data.get("pdf_file")
 
@@ -1205,7 +1102,9 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ============================================================
-    # 💎 PREMIUM VA PDF XULOSA KUNLIK LIMITI
+    # 💎 PDF XULOSA LIMITI
+    # FREE = 3 / kun
+    # PREMIUM = 5 / kun
     # ============================================================
 
     conn = sqlite3.connect("student_ai.db")
@@ -1231,7 +1130,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (user_id, pdf_summary_count, pdf_summary_last_date)
             VALUES (?, 0, ?)
             """,
-            (user_id, 0, today)
+            (user_id, today)
         )
         conn.commit()
 
@@ -1244,7 +1143,6 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_date = row[1]
         premium_until = row[2]
 
-    # Yangi kun — limitni avtomatik yangilash
     if last_date != today:
         pdf_summary_count = 0
 
@@ -1259,18 +1157,14 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
 
-    # Premium tekshirish
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # Free = 1 ta/kun
-    # Premium = 3 ta/kun
-    daily_limit = 3 if premium_active else 1
+    daily_limit = 5 if premium_active else 3
 
-    # Limit tugagan bo‘lsa
     if pdf_summary_count >= daily_limit:
         conn.close()
 
@@ -1278,39 +1172,39 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if premium_active:
                 msg = (
                     "⚠️ Ваш дневной лимит PDF-резюме закончился.\n\n"
-                    "⭐ Сегодня вы использовали 3 из 3 PDF."
+                    "⭐ Сегодня вы использовали 5 из 5 PDF."
                 )
             else:
                 msg = (
                     "🔒 Бесплатный дневной лимит PDF-резюме закончился.\n\n"
-                    "Сегодня доступно: 1 PDF.\n"
-                    "⭐ Premium даёт до 3 PDF-резюме в день."
+                    "Сегодня доступно: 3 PDF.\n"
+                    "⭐ Premium даёт до 5 PDF-резюме в день."
                 )
 
         elif lang == "en":
             if premium_active:
                 msg = (
                     "⚠️ Your daily PDF summary limit has been reached.\n\n"
-                    "⭐ You have used 3 of 3 PDFs today."
+                    "⭐ You have used 5 of 5 PDF summaries today."
                 )
             else:
                 msg = (
                     "🔒 Your free daily PDF summary limit has been reached.\n\n"
-                    "You can use 1 PDF summary per day.\n"
-                    "⭐ Premium allows up to 3 PDF summaries per day."
+                    "You can use 3 PDF summaries per day.\n"
+                    "⭐ Premium allows up to 5 PDF summaries per day."
                 )
 
         else:
             if premium_active:
                 msg = (
                     "⚠️ Bugungi PDF xulosa limitingiz tugadi.\n\n"
-                    "⭐ Bugun 3/3 ta PDF ishlatdingiz."
+                    "⭐ Bugun 5/5 ta PDF ishlatdingiz."
                 )
             else:
                 msg = (
                     "🔒 Bepul PDF xulosa limitingiz tugadi.\n\n"
-                    "Kuniga 1 ta PDF xulosa mavjud.\n"
-                    "⭐ Premium orqali kuniga 3 ta PDF xulosa olish mumkin."
+                    "Kuniga 3 ta PDF xulosa mavjud.\n"
+                    "⭐ Premium orqali kuniga 5 ta PDF xulosa olish mumkin."
                 )
 
         await update.message.reply_text(msg)
@@ -1319,7 +1213,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     # ============================================================
-    # ⏳ AI ISHLAYAPTI
+    # ⏳ KUTILMOQDA
     # ============================================================
 
     if lang == "ru":
@@ -1362,13 +1256,19 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif lang == "en":
         prompt = (
-            "You are the Student AI assistant. "
-            "Analyze the provided PDF document and create "
-            "a clear and useful summary for a student.\n\n"
-            "Include the main topic, main ideas, important "
-            "information and main conclusions.\n\n"
-            "If the PDF contains tables, images or scanned "
-            "pages, try to take their content into account.\n\n"
+            "You are Student AI, an AI assistant for students. "
+            "Analyze the provided PDF document carefully.\n\n"
+            "Create a clear, useful and well-structured summary "
+            "for a student.\n\n"
+            "Include:\n"
+            "1. Main topic\n"
+            "2. Main ideas\n"
+            "3. Important information\n"
+            "4. Key conclusions\n"
+            "5. Useful points for a student\n\n"
+            "If the PDF contains tables, images, scanned pages "
+            "or text in another language, analyze their content "
+            "as accurately as possible.\n\n"
             "IMPORTANT: regardless of the language of the PDF, "
             "write the entire answer ONLY IN ENGLISH."
         )
@@ -1396,51 +1296,101 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     answer = gemini_pdf_request(pdf_path, prompt)
 
-    if answer:
-
-        # Faqat AI muvaffaqiyatli javob berganda limitni oshiramiz
-        conn = sqlite3.connect("student_ai.db")
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            UPDATE users
-            SET pdf_summary_count = ?,
-                pdf_summary_last_date = ?
-            WHERE user_id = ?
-            """,
-            (pdf_summary_count + 1, today, user_id)
-        )
-
-        conn.commit()
-        conn.close()
-
-        await update.message.reply_text(
-            title + "\n\n" + answer
-        )
-
-    else:
-
-        # Gemini xato bersa limit SARFLANMAYDI
+    if not answer:
         if lang == "ru":
-            error_msg = (
-                "❌ Не удалось подготовить краткое содержание PDF.\n\n"
-                "Попробуйте ещё раз позже."
+            msg = (
+                "❌ Не удалось подготовить резюме PDF.\n\n"
+                "Попробуйте ещё раз через некоторое время."
             )
         elif lang == "en":
-            error_msg = (
-                "❌ The AI could not prepare the PDF summary.\n\n"
+            msg = (
+                "❌ I couldn't prepare the PDF summary.\n\n"
                 "Please try again later."
             )
         else:
-            error_msg = (
-                "❌ AI PDF uchun xulosa tayyorlay olmadi.\n\n"
+            msg = (
+                "❌ PDF uchun xulosa tayyorlay olmadim.\n\n"
                 "Birozdan keyin yana urinib ko‘ring."
             )
 
-        await update.message.reply_text(error_msg)
+        await update.message.reply_text(msg)
+        return
 
+    # ============================================================
+    # 💾 FAQAT MUVAFFAQIYATLI JAVOBDAN KEYIN LIMITNI OSHIRISH
+    # ============================================================
 
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET pdf_summary_count = ?,
+            pdf_summary_last_date = ?
+        WHERE user_id = ?
+        """,
+        (pdf_summary_count + 1, today, user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    # ============================================================
+    # 📤 TELEGRAM UZUNLIK CHEGARASI
+    # Javobni xavfsiz ravishda bo‘lib yuboramiz.
+    # ============================================================
+
+    full_message = title + "\n\n" + answer
+
+    MAX_LENGTH = 3500
+
+    if len(full_message) <= MAX_LENGTH:
+        try:
+            await update.message.reply_text(full_message)
+        except Exception as e:
+            print("❌ PDF SUMMARY SEND ERROR:", e)
+        return
+
+    # Uzun javobni bo‘laklarga ajratish
+    parts = []
+    current = ""
+
+    for paragraph in full_message.split("\n"):
+        paragraph = paragraph.strip()
+
+        if not paragraph:
+            continue
+
+        # Juda uzun bitta qatorni ham bo‘lamiz
+        while len(paragraph) > MAX_LENGTH:
+            if current:
+                parts.append(current.strip())
+                current = ""
+
+            parts.append(paragraph[:MAX_LENGTH])
+            paragraph = paragraph[MAX_LENGTH:]
+
+        if not current:
+            current = paragraph
+        elif len(current) + len(paragraph) + 2 <= MAX_LENGTH:
+            current += "\n\n" + paragraph
+        else:
+            parts.append(current.strip())
+            current = paragraph
+
+    if current:
+        parts.append(current.strip())
+
+    print("📤 PDF xulosa bo‘laklari:", len(parts))
+
+    for i, part in enumerate(parts, 1):
+        try:
+            await update.message.reply_text(part)
+        except Exception as e:
+            print(f"❌ PDF SUMMARY PART {i} ERROR:", e)
+
+        await asyncio.sleep(0.3)
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pdf_path = context.user_data.get("pdf_file")

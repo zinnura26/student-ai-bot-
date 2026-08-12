@@ -2,3 +2,6 @@
 student_ai.db
 __pycache__/
 *.pyc
+*.backup
+*.before_message_split
+uploaded_*.pdf
