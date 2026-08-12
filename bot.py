@@ -81,6 +81,21 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 📝 PDF XULOSA uchun kunlik limit
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_summary_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_summary_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -438,7 +453,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
+        "v1beta/models/gemini-3.6-flash:generateContent"
     )
 
     headers = {
@@ -951,24 +966,38 @@ async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 def gemini_pdf_request(pdf_path, prompt):
     try:
-        import base64
-
         if not GEMINI_API_KEY:
             print("❌ GEMINI_API_KEY topilmadi")
             return None
 
-        with open(pdf_path, "rb") as f:
-            pdf_bytes = f.read()
+        # 📄 PDFdan matnni olish
+        pdf_text = extract_pdf_text(pdf_path)
 
-        if not pdf_bytes:
-            print("❌ PDF fayl bo'sh")
+        if not pdf_text:
+            print("❌ PDF ichidan matn olinmadi")
             return None
 
-        pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+        # Juda katta PDF matnini cheklaymiz
+        max_chars = 50000
+        if len(pdf_text) > max_chars:
+            print(
+                f"⚠️ PDF matni juda katta: {len(pdf_text)} belgi. "
+                f"{max_chars} belgigacha qisqartiriladi."
+            )
+            pdf_text = pdf_text[:max_chars]
+
+        full_prompt = (
+            prompt
+            + "\n\n"
+            + "QUYIDA PDF HUJJATIDAN OLINGAN MATN:\n"
+            + "==============================\n"
+            + pdf_text
+            + "\n==============================\n"
+        )
 
         url = (
             "https://generativelanguage.googleapis.com/"
-            "v1beta/models/gemini-3.5-flash:generateContent"
+            "v1beta/models/gemini-3.6-flash:generateContent"
         )
 
         headers = {
@@ -980,19 +1009,16 @@ def gemini_pdf_request(pdf_path, prompt):
             "contents": [
                 {
                     "parts": [
-                        {"text": prompt},
                         {
-                            "inline_data": {
-                                "mime_type": "application/pdf",
-                                "data": pdf_base64
-                            }
+                            "text": full_prompt
                         }
                     ]
                 }
             ]
         }
 
-        print("⏳ Gemini PDF so'rov yuborilmoqda...")
+        print("⏳ Gemini'ga PDF MATNI yuborilmoqda...")
+        print("📄 PDF matn uzunligi:", len(pdf_text))
 
         response = requests.post(
             url,
@@ -2009,7 +2035,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.5-flash:generateContent"
+        "v1beta/models/gemini-3.6-flash:generateContent"
     )
 
     headers = {
@@ -2152,7 +2178,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{limit_text}"
     )
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
     headers = {
         "x-goog-api-key": GEMINI_API_KEY,
