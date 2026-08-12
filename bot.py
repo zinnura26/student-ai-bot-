@@ -1139,20 +1139,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⏳ PDF-файл читается AI, "
             "готовится краткое содержание..."
         )
-    elif lang == "en":
-        waiting = (
-            "⏳ The AI is reading the PDF "
-            "and preparing a short summary..."
-        )
-    else:
-        waiting = (
-            "⏳ PDF fayl AI tomonidan o‘qilmoqda "
-            "va qisqa xulosa tayyorlanmoqda..."
-        )
 
-    await update.message.reply_text(waiting)
-
-    if lang == "ru":
         prompt = (
             "Ты помощник Student AI. "
             "Проанализируй предоставленный PDF-документ. "
@@ -1166,9 +1153,15 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ВАЖНО: независимо от языка самого PDF, "
             "весь ответ напиши ТОЛЬКО НА РУССКОМ ЯЗЫКЕ."
         )
+
         title = "📝 КРАТКОЕ СОДЕРЖАНИЕ PDF"
 
     elif lang == "en":
+        waiting = (
+            "⏳ The AI is reading the PDF "
+            "and preparing a short summary..."
+        )
+
         prompt = (
             "You are the Student AI assistant. "
             "Analyze the provided PDF document and create "
@@ -1180,9 +1173,15 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "IMPORTANT: regardless of the language of the PDF, "
             "write the entire answer ONLY IN ENGLISH."
         )
+
         title = "📝 PDF SUMMARY"
 
     else:
+        waiting = (
+            "⏳ PDF fayl AI tomonidan o‘qilmoqda "
+            "va qisqa xulosa tayyorlanmoqda..."
+        )
+
         prompt = (
             "Sen Student AI yordamchisisan. "
             "Berilgan PDF hujjatni tahlil qilib, "
@@ -1196,15 +1195,14 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "MUHIM: PDF qaysi tilda bo‘lishidan qat'i nazar, "
             "butun javobni FAQAT O‘ZBEK TILIDA yoz."
         )
+
         title = "📝 PDF XULOSA"
+
+    await update.message.reply_text(waiting)
 
     answer = gemini_pdf_request(pdf_path, prompt)
 
-    if answer:
-        await update.message.reply_text(
-            title + "\n\n" + answer
-        )
-    else:
+    if not answer:
         if lang == "ru":
             error_msg = "❌ Не удалось подготовить краткое содержание PDF."
         elif lang == "en":
@@ -1213,7 +1211,17 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             error_msg = "❌ AI PDF uchun xulosa tayyorlay olmadi."
 
         await update.message.reply_text(error_msg)
+        return
 
+    # Telegram bitta xabarda 4096 belgigacha qabul qiladi.
+    # Uzun PDF xulosalarini xavfsiz tarzda bo‘lib yuboramiz.
+    full_text = title + "\n\n" + answer
+
+    max_length = 4000
+
+    for i in range(0, len(full_text), max_length):
+        chunk = full_text[i:i + max_length]
+        await update.message.reply_text(chunk)
 
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
