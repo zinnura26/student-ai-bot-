@@ -1121,59 +1121,98 @@ async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pdf_path = context.user_data.get("pdf_file")
-
-    if not pdf_path or not os.path.exists(pdf_path):
-        await update.message.reply_text(
-            "❌ Avval PDF fayl yuboring."
-        )
-        return
-
-    await update.message.reply_text(
-        "⏳ PDF fayl AI tomonidan o‘qilmoqda va qisqa xulosa tayyorlanmoqda..."
-    )
-
     lang = context.user_data.get("language", "uz")
 
-    if lang == "uz":
-        prompt = (
-            "Sen Student AI yordamchisisan. "
-            "Berilgan PDF hujjatning mazmunini tahlil qilib, "
-            "talaba uchun tushunarli va mazmunli qisqa xulosa tayyorla.\n\n"
-            "Asosiy fikrlar, muhim ma’lumotlar va yakuniy xulosani ber. "
-            "PDF skanerlangan bo‘lsa yoki rasmlar va jadvallar mavjud bo‘lsa, "
-            "ularni ham imkon qadar tahlil qil.\n\n"
-            "Javobni o‘zbek tilida yoz."
+    if not pdf_path or not os.path.exists(pdf_path):
+        if lang == "ru":
+            msg = "❌ Сначала отправьте PDF-файл."
+        elif lang == "en":
+            msg = "❌ Please send a PDF file first."
+        else:
+            msg = "❌ Avval PDF fayl yuboring."
+
+        await update.message.reply_text(msg)
+        return
+
+    if lang == "ru":
+        waiting = (
+            "⏳ PDF-файл читается AI, "
+            "готовится краткое содержание..."
         )
+    elif lang == "en":
+        waiting = (
+            "⏳ The AI is reading the PDF "
+            "and preparing a short summary..."
+        )
+    else:
+        waiting = (
+            "⏳ PDF fayl AI tomonidan o‘qilmoqda "
+            "va qisqa xulosa tayyorlanmoqda..."
+        )
+
+    await update.message.reply_text(waiting)
+
+    if lang == "ru":
+        prompt = (
+            "Ты помощник Student AI. "
+            "Проанализируй предоставленный PDF-документ. "
+            "Сделай понятное и содержательное краткое резюме "
+            "для студента.\n\n"
+            "Укажи основную тему, главные мысли, важную "
+            "информацию и основные выводы.\n\n"
+            "Если PDF содержит таблицы, изображения или "
+            "сканированные страницы, постарайся учитывать "
+            "их содержание.\n\n"
+            "ВАЖНО: независимо от языка самого PDF, "
+            "весь ответ напиши ТОЛЬКО НА РУССКОМ ЯЗЫКЕ."
+        )
+        title = "📝 КРАТКОЕ СОДЕРЖАНИЕ PDF"
+
     elif lang == "en":
         prompt = (
             "You are the Student AI assistant. "
-            "Analyze the provided PDF and create a clear, useful summary "
-            "for a student. Include the main ideas, important information "
-            "and final conclusion. If the PDF contains scanned pages, "
-            "images or tables, analyze them when possible. "
-            "Answer in English."
+            "Analyze the provided PDF document and create "
+            "a clear and useful summary for a student.\n\n"
+            "Include the main topic, main ideas, important "
+            "information and main conclusions.\n\n"
+            "If the PDF contains tables, images or scanned "
+            "pages, try to take their content into account.\n\n"
+            "IMPORTANT: regardless of the language of the PDF, "
+            "write the entire answer ONLY IN ENGLISH."
         )
+        title = "📝 PDF SUMMARY"
+
     else:
         prompt = (
-            "Ты помощник Student AI. "
-            "Проанализируй предоставленный PDF и сделай понятное "
-            "и содержательное краткое резюме для студента. "
-            "Укажи главные мысли, важную информацию и вывод. "
-            "Если PDF содержит сканированные страницы, изображения "
-            "или таблицы, постарайся их также проанализировать. "
-            "Отвечай на русском языке."
+            "Sen Student AI yordamchisisan. "
+            "Berilgan PDF hujjatni tahlil qilib, "
+            "talaba uchun tushunarli va mazmunli qisqa "
+            "xulosa tayyorla.\n\n"
+            "Asosiy mavzu, asosiy fikrlar, muhim ma'lumotlar "
+            "va asosiy xulosalarni ber.\n\n"
+            "Agar PDF ichida jadvallar, rasmlar yoki "
+            "skanerlangan sahifalar bo‘lsa, ularning "
+            "mazmunini ham imkon qadar hisobga ol.\n\n"
+            "MUHIM: PDF qaysi tilda bo‘lishidan qat'i nazar, "
+            "butun javobni FAQAT O‘ZBEK TILIDA yoz."
         )
+        title = "📝 PDF XULOSA"
 
     answer = gemini_pdf_request(pdf_path, prompt)
 
     if answer:
         await update.message.reply_text(
-            "📝 PDF XULOSA\n\n" + answer
+            title + "\n\n" + answer
         )
     else:
-        await update.message.reply_text(
-            "❌ AI PDF uchun xulosa tayyorlay olmadi."
-        )
+        if lang == "ru":
+            error_msg = "❌ Не удалось подготовить краткое содержание PDF."
+        elif lang == "en":
+            error_msg = "❌ The AI could not prepare a PDF summary."
+        else:
+            error_msg = "❌ AI PDF uchun xulosa tayyorlay olmadi."
+
+        await update.message.reply_text(error_msg)
 
 
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1366,6 +1405,13 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await file.download_to_drive(pdf_path)
 
         context.user_data["pdf_file"] = pdf_path
+        context.user_data["pdf_mode"] = True
+
+        context.user_data["pdf_question_mode"] = False
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
 
         lang = context.user_data.get("language", "uz")
 
@@ -1373,22 +1419,19 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             message = (
                 "✅ PDF принят!\n\n"
                 "Выберите нужную услугу:\n\n"
-                "📝 Краткое содержание PDF\n"
-                "❓ Задать вопрос по PDF"
+                "📝 Краткое содержание PDF"
             )
         elif lang == "en":
             message = (
                 "✅ PDF received!\n\n"
                 "Choose the required service:\n\n"
-                "📝 PDF summary\n"
-                "❓ Ask a question about PDF"
+                "📝 PDF Summary"
             )
         else:
             message = (
                 "✅ PDF qabul qilindi!\n\n"
                 "Kerakli xizmatni tanlang:\n\n"
-                "📝 PDF xulosa\n"
-                "❓ PDFdan savol berish"
+                "📝 PDF xulosa"
             )
 
         await update.message.reply_text(message)
@@ -1399,6 +1442,7 @@ async def pdf_document_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "❌ PDFni qabul qilishda xatolik yuz berdi."
         )
+
 
 async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
     images = context.user_data.get("pdf_images", [])
