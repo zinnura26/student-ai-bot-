@@ -949,13 +949,20 @@ async def cancel_pdf_images(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 # 🤖 GEMINI PDF YORDAMCHI
 # ============================================================
-
 def gemini_pdf_request(pdf_path, prompt):
     try:
         import base64
 
+        if not GEMINI_API_KEY:
+            print("❌ GEMINI_API_KEY topilmadi")
+            return None
+
         with open(pdf_path, "rb") as f:
             pdf_bytes = f.read()
+
+        if not pdf_bytes:
+            print("❌ PDF fayl bo'sh")
+            return None
 
         pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
@@ -973,9 +980,7 @@ def gemini_pdf_request(pdf_path, prompt):
             "contents": [
                 {
                     "parts": [
-                        {
-                            "text": prompt
-                        },
+                        {"text": prompt},
                         {
                             "inline_data": {
                                 "mime_type": "application/pdf",
@@ -987,6 +992,8 @@ def gemini_pdf_request(pdf_path, prompt):
             ]
         }
 
+        print("⏳ Gemini PDF so'rov yuborilmoqda...")
+
         response = requests.post(
             url,
             headers=headers,
@@ -994,30 +1001,60 @@ def gemini_pdf_request(pdf_path, prompt):
             timeout=120
         )
 
-        result = response.json()
-
         print("🔍 GEMINI PDF STATUS:", response.status_code)
+
+        try:
+            result = response.json()
+        except Exception:
+            print("❌ Gemini JSON javob qaytarmadi")
+            print("❌ RESPONSE:", response.text[:2000])
+            return None
+
         print("🔍 GEMINI PDF RESPONSE:", result)
 
         if response.status_code != 200:
             print("❌ GEMINI PDF HTTP ERROR:", response.status_code)
-            print("❌ GEMINI PDF ERROR BODY:", result)
+
+            if response.status_code == 429:
+                print("⚠️ GEMINI QUOTA/RATE LIMIT: 429")
+
             return None
 
         candidates = result.get("candidates")
 
         if not candidates:
             print("❌ GEMINI PDF: candidates topilmadi")
-            print("❌ GEMINI PDF FULL RESPONSE:", result)
             return None
 
         content = candidates[0].get("content", {})
         parts = content.get("parts", [])
 
+        texts = []
+
         for part in parts:
             if "text" in part:
-                return part["text"]
+                texts.append(part["text"])
 
+        if not texts:
+            print("❌ GEMINI PDF: text topilmadi")
+            return None
+
+        answer = "\n".join(texts).strip()
+
+        if not answer:
+            print("❌ GEMINI PDF: bo'sh javob")
+            return None
+
+        print("✅ GEMINI PDF XULOSA TAYYOR")
+
+        return answer
+
+    except requests.exceptions.Timeout:
+        print("❌ GEMINI PDF TIMEOUT")
+        return None
+
+    except requests.exceptions.RequestException as e:
+        print("❌ GEMINI PDF NETWORK ERROR:", e)
         return None
 
     except Exception as e:
