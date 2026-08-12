@@ -1120,8 +1120,15 @@ async def pdf_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    pdf_path = context.user_data.get("pdf_file")
+    user_id = update.effective_user.id
     lang = context.user_data.get("language", "uz")
+    today = __import__("datetime").date.today().isoformat()
+
+    # ============================================================
+    # 📄 PDF FAYLNI TEKSHIRISH
+    # ============================================================
+
+    pdf_path = context.user_data.get("pdf_file")
 
     if not pdf_path or not os.path.exists(pdf_path):
         if lang == "ru":
@@ -1134,12 +1141,147 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(msg)
         return
 
+    # ============================================================
+    # 💎 PREMIUM VA PDF XULOSA KUNLIK LIMITI
+    # ============================================================
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT pdf_summary_count,
+               pdf_summary_last_date,
+               premium_until
+        FROM users
+        WHERE user_id = ?
+        """,
+        (user_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            """
+            INSERT INTO users
+            (user_id, pdf_summary_count, pdf_summary_last_date)
+            VALUES (?, 0, ?)
+            """,
+            (user_id, 0, today)
+        )
+        conn.commit()
+
+        pdf_summary_count = 0
+        last_date = today
+        premium_until = None
+
+    else:
+        pdf_summary_count = row[0] or 0
+        last_date = row[1]
+        premium_until = row[2]
+
+    # Yangi kun — limitni avtomatik yangilash
+    if last_date != today:
+        pdf_summary_count = 0
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET pdf_summary_count = 0,
+                pdf_summary_last_date = ?
+            WHERE user_id = ?
+            """,
+            (today, user_id)
+        )
+        conn.commit()
+
+    # Premium tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    # Free = 1 ta/kun
+    # Premium = 3 ta/kun
+    daily_limit = 3 if premium_active else 1
+
+    # Limit tugagan bo‘lsa
+    if pdf_summary_count >= daily_limit:
+        conn.close()
+
+        if lang == "ru":
+            if premium_active:
+                msg = (
+                    "⚠️ Ваш дневной лимит PDF-резюме закончился.\n\n"
+                    "⭐ Сегодня вы использовали 3 из 3 PDF."
+                )
+            else:
+                msg = (
+                    "🔒 Бесплатный дневной лимит PDF-резюме закончился.\n\n"
+                    "Сегодня доступно: 1 PDF.\n"
+                    "⭐ Premium даёт до 3 PDF-резюме в день."
+                )
+
+        elif lang == "en":
+            if premium_active:
+                msg = (
+                    "⚠️ Your daily PDF summary limit has been reached.\n\n"
+                    "⭐ You have used 3 of 3 PDFs today."
+                )
+            else:
+                msg = (
+                    "🔒 Your free daily PDF summary limit has been reached.\n\n"
+                    "You can use 1 PDF summary per day.\n"
+                    "⭐ Premium allows up to 3 PDF summaries per day."
+                )
+
+        else:
+            if premium_active:
+                msg = (
+                    "⚠️ Bugungi PDF xulosa limitingiz tugadi.\n\n"
+                    "⭐ Bugun 3/3 ta PDF ishlatdingiz."
+                )
+            else:
+                msg = (
+                    "🔒 Bepul PDF xulosa limitingiz tugadi.\n\n"
+                    "Kuniga 1 ta PDF xulosa mavjud.\n"
+                    "⭐ Premium orqali kuniga 3 ta PDF xulosa olish mumkin."
+                )
+
+        await update.message.reply_text(msg)
+        return
+
+    conn.close()
+
+    # ============================================================
+    # ⏳ AI ISHLAYAPTI
+    # ============================================================
+
     if lang == "ru":
         waiting = (
             "⏳ PDF-файл читается AI, "
             "готовится краткое содержание..."
         )
+    elif lang == "en":
+        waiting = (
+            "⏳ The AI is reading the PDF "
+            "and preparing a short summary..."
+        )
+    else:
+        waiting = (
+            "⏳ PDF fayl AI tomonidan o‘qilmoqda "
+            "va qisqa xulosa tayyorlanmoqda..."
+        )
 
+    await update.message.reply_text(waiting)
+
+    # ============================================================
+    # 🌐 TILGA MOS PROMPT
+    # ============================================================
+
+    if lang == "ru":
         prompt = (
             "Ты помощник Student AI. "
             "Проанализируй предоставленный PDF-документ. "
@@ -1153,15 +1295,9 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ВАЖНО: независимо от языка самого PDF, "
             "весь ответ напиши ТОЛЬКО НА РУССКОМ ЯЗЫКЕ."
         )
-
         title = "📝 КРАТКОЕ СОДЕРЖАНИЕ PDF"
 
     elif lang == "en":
-        waiting = (
-            "⏳ The AI is reading the PDF "
-            "and preparing a short summary..."
-        )
-
         prompt = (
             "You are the Student AI assistant. "
             "Analyze the provided PDF document and create "
@@ -1173,15 +1309,9 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "IMPORTANT: regardless of the language of the PDF, "
             "write the entire answer ONLY IN ENGLISH."
         )
-
         title = "📝 PDF SUMMARY"
 
     else:
-        waiting = (
-            "⏳ PDF fayl AI tomonidan o‘qilmoqda "
-            "va qisqa xulosa tayyorlanmoqda..."
-        )
-
         prompt = (
             "Sen Student AI yordamchisisan. "
             "Berilgan PDF hujjatni tahlil qilib, "
@@ -1195,33 +1325,58 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "MUHIM: PDF qaysi tilda bo‘lishidan qat'i nazar, "
             "butun javobni FAQAT O‘ZBEK TILIDA yoz."
         )
-
         title = "📝 PDF XULOSA"
 
-    await update.message.reply_text(waiting)
+    # ============================================================
+    # 🤖 GEMINI
+    # ============================================================
 
     answer = gemini_pdf_request(pdf_path, prompt)
 
-    if not answer:
+    if answer:
+
+        # Faqat AI muvaffaqiyatli javob berganda limitni oshiramiz
+        conn = sqlite3.connect("student_ai.db")
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET pdf_summary_count = ?,
+                pdf_summary_last_date = ?
+            WHERE user_id = ?
+            """,
+            (pdf_summary_count + 1, today, user_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        await update.message.reply_text(
+            title + "\n\n" + answer
+        )
+
+    else:
+
+        # Gemini xato bersa limit SARFLANMAYDI
         if lang == "ru":
-            error_msg = "❌ Не удалось подготовить краткое содержание PDF."
+            error_msg = (
+                "❌ Не удалось подготовить краткое содержание PDF.\n\n"
+                "Попробуйте ещё раз позже."
+            )
         elif lang == "en":
-            error_msg = "❌ The AI could not prepare a PDF summary."
+            error_msg = (
+                "❌ The AI could not prepare the PDF summary.\n\n"
+                "Please try again later."
+            )
         else:
-            error_msg = "❌ AI PDF uchun xulosa tayyorlay olmadi."
+            error_msg = (
+                "❌ AI PDF uchun xulosa tayyorlay olmadi.\n\n"
+                "Birozdan keyin yana urinib ko‘ring."
+            )
 
         await update.message.reply_text(error_msg)
-        return
 
-    # Telegram bitta xabarda 4096 belgigacha qabul qiladi.
-    # Uzun PDF xulosalarini xavfsiz tarzda bo‘lib yuboramiz.
-    full_text = title + "\n\n" + answer
-
-    max_length = 4000
-
-    for i in range(0, len(full_text), max_length):
-        chunk = full_text[i:i + max_length]
-        await update.message.reply_text(chunk)
 
 async def pdf_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
