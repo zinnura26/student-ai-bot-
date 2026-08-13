@@ -2310,6 +2310,15 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start_image_to_pdf(update, context)
             return
 
+        # ✅ PDF TAYYORLASH
+        if text in [
+            "✅ PDF tayyorlash",
+            "✅ Создать PDF",
+            "✅ Create PDF"
+        ]:
+            await make_pdf_from_images(update, context)
+            return
+
         return
 
     # 💻 Agar dasturlash rejimi yoqilgan bo'lsa
