@@ -405,6 +405,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
         await update.message.reply_text('❌ Esse tayyorlashda xatolik yuz berdi.')
 
 async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, topic: str):
+    print("🚀 REPORT GENERATOR ISHLADI:", topic)
     user_id = update.effective_user.id
     lang = context.user_data.get("language", "uz")
     from datetime import date
