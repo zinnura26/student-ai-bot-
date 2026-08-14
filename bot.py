@@ -444,7 +444,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-2.5-flash:generateContent"
+        "v1beta/models/gemini-3.6-flash:generateContent"
     )
 
     headers = {
