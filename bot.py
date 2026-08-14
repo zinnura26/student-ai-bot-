@@ -329,7 +329,6 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     today = str(date.today())
 
-    # Foydalanuvchi ma'lumotlarini olish
     conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
 
@@ -344,7 +343,6 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = cursor.fetchone()
 
-    # Yangi foydalanuvchi
     if user is None:
         cursor.execute(
             """
@@ -357,17 +355,14 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
             (user_id, today)
         )
-
         conn.commit()
 
         programming_count = 0
         programming_last_date = today
         premium_until = None
-
     else:
         programming_count, programming_last_date, premium_until = user
 
-    # Yangi kun bo'lsa limitni yangilash
     if programming_last_date != today:
         programming_count = 0
 
@@ -380,21 +375,19 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
             (today, user_id)
         )
-
         conn.commit()
 
     conn.close()
 
-    # ⭐ Premium holatini tekshirish
+    # ⭐ Premium tekshirish
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # 🆓 Bepul foydalanuvchi uchun 5 ta limit
+    # 🆓 Bepul limit
     if not premium_active and programming_count >= 5:
-
         if lang == "uz":
             limit_text = (
                 "⛔ Bugungi bepul dasturlash limitingiz tugadi.\n\n"
@@ -412,38 +405,36 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         await update.message.reply_text(limit_text)
-
         context.user_data["programming_mode"] = False
-
         return
+
     user_question = text
-    # 🌍 Tilga qarab AI prompt
+
+    # 🌍 AI prompt
     if lang == "uz":
         prompt = (
             "Sen Student AI dasturlash yordamchisisan. "
             "Foydalanuvchining dasturlash savoliga o'zbek tilida "
             "tushunarli va aniq javob ber. "
             "Kerak bo'lsa kod yoz. "
-            "Koddagi xatolarni ham tushuntir. "
+            "Koddagi xatolarni tushuntir. "
             "Javobni keraksiz uzun qilma.\n\n"
             f"Foydalanuvchi savoli:\n{user_question}"
         )
-
     elif lang == "en":
         prompt = (
             "You are the Student AI programming assistant. "
-            "Answer the user's programming question clearly in English. "
+            "Answer the programming question clearly in English. "
             "Provide code when needed and explain errors. "
             "Do not make the answer unnecessarily long.\n\n"
             f"User question:\n{user_question}"
         )
-
     else:
         prompt = (
             "Ты помощник Student AI по программированию. "
             "Отвечай понятно и точно на русском языке. "
             "При необходимости пиши код и объясняй ошибки. "
-            "Не делай ответ unnecessarily длинным.\n\n"
+            "Не делай ответ слишком длинным.\n\n"
             f"Вопрос пользователя:\n{user_question}"
         )
 
@@ -453,7 +444,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-2.5-flash:generateContent"
     )
 
     headers = {
@@ -483,10 +474,19 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         print("🔍 PROGRAMMING GEMINI:", result)
 
-        if "candidates" in result:
-            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+        if response.status_code != 200:
+            await update.message.reply_text(
+                f"❌ Gemini xatosi ({response.status_code}):\n"
+                f"{result}"
+            )
+            return
 
-            # 🆓 Faqat bepul foydalanuvchi limitini oshirish
+        if "candidates" in result:
+            answer = (
+                result["candidates"][0]
+                ["content"]["parts"][0]["text"]
+            )
+
             if not premium_active:
                 programming_count += 1
 
@@ -524,11 +524,16 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"❌ Dasturlash AI xatosi:\n{result}"
             )
 
+    except requests.exceptions.Timeout:
+        await update.message.reply_text(
+            "⏳ AI serveri javob berishga ulgurmayapti. "
+            "Birozdan keyin yana urinib ko'ring."
+        )
+
     except Exception as e:
         await update.message.reply_text(
             f"❌ Xato: {e}"
         )
-
 
 async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
