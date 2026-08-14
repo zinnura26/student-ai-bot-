@@ -3092,4 +3092,11 @@ app.add_handler(
 
 print("✅ Student AI ishga tushdi...")
 
+async def error_handler(update, context):
+    print("❌ GLOBAL ERROR:")
+    print(type(context.error).__name__)
+    print(context.error)
+
+app.add_error_handler(error_handler)
+
 app.run_polling()
