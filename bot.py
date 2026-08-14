@@ -2235,6 +2235,22 @@ app = Application.builder().token(TOKEN).build()
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
+    # 🤖 AI yordamchi
+    if text in [
+        "🤖 AI yordamchi",
+        "🤖 AI Assistant",
+        "🤖 AI Помощник"
+    ]:
+        context.user_data["pdf_mode"] = False
+        context.user_data["pdf_question_mode"] = False
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = True
+
+        await ai_assistant(update, context)
+        return
+
     # 📄 PDF / Hujjat
     if text in [
         "📄 PDF / Hujjat",
