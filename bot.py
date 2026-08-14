@@ -96,6 +96,28 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 📝 ESSE uchun kunlik limit
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN essay_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN essay_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_summary_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -271,6 +293,101 @@ async def ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text(text)
+
+async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, topic: str):
+    user_id = update.effective_user.id
+    lang = context.user_data.get('language', 'uz')
+    from datetime import date
+    today = date.today().isoformat()
+
+    conn = sqlite3.connect('student_ai.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT essay_count, essay_last_date, premium_until FROM users WHERE user_id = ?',
+        (user_id,)
+    )
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            'INSERT INTO users (user_id, essay_count, essay_last_date) VALUES (?, 0, ?)',
+            (user_id, today)
+        )
+        conn.commit()
+        essay_count = 0
+        last_date = today
+        premium_until = None
+    else:
+        essay_count = row[0] or 0
+        last_date = row[1]
+        premium_until = row[2]
+
+    if last_date != today:
+        essay_count = 0
+        cursor.execute(
+            'UPDATE users SET essay_count = 0, essay_last_date = ? WHERE user_id = ?',
+            (today, user_id)
+        )
+        conn.commit()
+
+    premium_active = bool(premium_until and premium_until >= today)
+    daily_limit = 10 if premium_active else 2
+
+    if essay_count >= daily_limit:
+        conn.close()
+        await update.message.reply_text(
+            f'🔒 Bugungi esse limitingiz tugadi. {essay_count}/{daily_limit}'
+        )
+        return
+
+    conn.close()
+
+    await update.message.reply_text('⏳ AI esseingizni tayyorlamoqda...')
+
+    prompt = (
+        'Sen Student AI, akademik yozuv yordamchisisan. '
+'Talaba uchun o‘zbek tilida mazmunli, tushunarli va yaxshi tuzilgan esse yoz. '
+'Kirish, asosiy qism va xulosa bo‘lsin. Mavzuni to‘liq yorit.\n\n'
+        f'MAVZU:\n{topic}'
+    )
+
+    url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent'
+    headers = {
+        'x-goog-api-key': GEMINI_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    data = {'contents': [{'parts': [{'text': prompt}]}]}
+
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=60)
+        result = response.json()
+
+        if response.status_code != 200:
+            await update.message.reply_text(f'❌ Gemini xatosi: {response.status_code}')
+            return
+
+        if 'candidates' not in result:
+            await update.message.reply_text('❌ Esse tayyorlashda javob olinmadi.')
+            return
+
+        answer = result['candidates'][0]['content']['parts'][0]['text']
+
+        conn = sqlite3.connect('student_ai.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET essay_count = ?, essay_last_date = ? WHERE user_id = ?',
+            (essay_count + 1, today, user_id)
+        )
+        conn.commit()
+        conn.close()
+
+        await update.message.reply_text(
+            f'📝 ESSE\n\n{answer}\n\n📊 Bugungi foydalanish: {essay_count + 1}/{daily_limit}'
+        )
+
+    except Exception as e:
+        print('❌ ESSAY ERROR:', e)
+        await update.message.reply_text('❌ Esse tayyorlashda xatolik yuz berdi.')
 
 async def programming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
@@ -2604,6 +2721,18 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await language(update, context)
         return
 
+    # 📝 ESSE MAVZUSI
+    if context.user_data.get("essay_topic_mode"):
+        topic = text.strip()
+
+        if not topic:
+            await update.message.reply_text("❌ Esse mavzusini yozing.")
+            return
+
+        context.user_data["essay_topic_mode"] = False
+        await essay_generator(update, context, topic)
+        return
+
     # 📚 YOZMA ISHLAR REJIMI
     if context.user_data.get("writing_mode"):
 
@@ -2613,10 +2742,30 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📝 Essay",
             "📝 Эссе"
         ]:
-            await update.message.reply_text(
-                "📝 Esse\n\n"
-                "Esse tayyorlash bo‘limi hozir ishga tushirilmoqda."
-            )
+            context.user_data["essay_topic_mode"] = True
+
+            lang = context.user_data.get("language", "uz")
+
+            if lang == "en":
+                msg = (
+                    "📝 ESSAY\n\n"
+                    "Send the topic of your essay.\n\n"
+                    "Example: The role of artificial intelligence in education"
+                )
+            elif lang == "ru":
+                msg = (
+                    "📝 ЭССЕ\n\n"
+                    "Отправьте тему эссе.\n\n"
+                    "Например: Роль искусственного интеллекта в образовании"
+                )
+            else:
+                msg = (
+                    "📝 ESSE\n\n"
+                    "Esse mavzusini yuboring.\n\n"
+                    "Masalan: Sun’iy intellektning ta’limdagi o‘rni"
+                )
+
+            await update.message.reply_text(msg)
             return
 
         # 📖 MUSTAQIL ISH
