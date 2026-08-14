@@ -567,9 +567,9 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         )
 
     except Exception as e:
-        print("❌ REPORT ERROR:", e)
+        print("❌ REPORT ERROR:", type(e).__name__, e)
         await update.message.reply_text(
-            "❌ Referat tayyorlashda xatolik yuz berdi."
+            f"❌ Referat xatosi:\n{type(e).__name__}: {e}"
         )
 
 async def programming(update: Update, context: ContextTypes.DEFAULT_TYPE):
