@@ -2074,66 +2074,89 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     today = str(date.today())
+    lang = context.user_data.get("language", "uz")
 
     question_count, last_date, premium_until = get_user(user_id)
 
-    # Premium hali faolmi?
+    # ⭐ Premium holatini tekshirish
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # Agar Premium faol bo'lmasa, bepul limitni boshqaramiz
+    # 🆓 Bepul limit
     if not premium_active:
 
-        # Yangi kun bo'lsa, bepul limitni yangilash
         if last_date != today:
             question_count = 0
             update_question_count(user_id, 0, today)
 
-        # Bepul limit: kuniga 5 ta savol
         if question_count >= 5:
-            lang = context.user_data.get("language", "uz")
 
             if lang == "uz":
-                text = (
+                limit_text = (
                     "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
                     "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
                 )
-
             elif lang == "en":
-                text = (
+                limit_text = (
                     "⛔ Your free AI limit for today is over.\n\n"
                     "⭐ You can use more with Premium."
                 )
-
             else:
-                text = (
+                limit_text = (
                     "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
                     "⭐ Больше возможностей доступно с Premium."
                 )
 
-            await update.message.reply_text(text)
+            await update.message.reply_text(limit_text)
             return
 
-    user_question = update.message.text
+    # 🌍 Tilga qarab AI prompt
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI yordamchisisan. "
+            "Foydalanuvchiga o'zbek tilida tushunarli, aniq va foydali javob ber. "
+            "Agar savol o'quv, matematika, fizika, dasturlash yoki boshqa mavzuda bo'lsa, "
+            "kerakli tushuntirish va misollarni ber. "
+            "Javobni keraksiz uzun qilma.\n\n"
+            f"Foydalanuvchi savoli:\n{text}"
+        )
 
-    # Faqat bepul foydalanuvchining limitini oshiramiz
-    if not premium_active:
-        question_count += 1
-        update_question_count(user_id, question_count, today)
+    elif lang == "en":
+        prompt = (
+            "You are the Student AI assistant. "
+            "Answer the user clearly and accurately in English. "
+            "If the question is about study, mathematics, physics, programming, "
+            "or another topic, provide useful explanations and examples. "
+            "Do not make the answer unnecessarily long.\n\n"
+            f"User question:\n{text}"
+        )
 
-        limit_text = f"📊 Bugungi bepul savollar: {question_count}/5"
     else:
-        limit_text = "⭐ Premium — AI savollariga limit yo'q"
+        prompt = (
+            "Ты помощник Student AI. "
+            "Отвечай пользователю понятно, точно и на русском языке. "
+            "Если вопрос касается учёбы, математики, физики, программирования "
+            "или другой темы, дай полезное объяснение и примеры. "
+            "Не делай ответ unnecessarily длинным.\n\n"
+            f"Вопрос пользователя:\n{text}"
+        )
 
-    await update.message.reply_text(
-        f"⏳ AI o'ylayapti...\n\n"
-        f"{limit_text}"
+    if lang == "uz":
+        wait_text = "⏳ AI o'ylayapti..."
+    elif lang == "en":
+        wait_text = "⏳ AI is thinking..."
+    else:
+        wait_text = "⏳ AI думает..."
+
+    await update.message.reply_text(wait_text)
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.6-flash:generateContent"
     )
-
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
     headers = {
         "x-goog-api-key": GEMINI_API_KEY,
@@ -2145,7 +2168,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             {
                 "parts": [
                     {
-                        "text": user_question
+                        "text": prompt
                     }
                 ]
             }
@@ -2166,19 +2189,44 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         result = response.json()
-        print(result)
+
+        print("🤖 AI GEMINI:", result)
 
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
-            await update.message.reply_text(answer)
+
+            # 🆓 Faqat muvaffaqiyatli javobdan keyin limitni oshiramiz
+            if not premium_active:
+                question_count += 1
+                update_question_count(
+                    user_id,
+                    question_count,
+                    today
+                )
+
+                limit_text = (
+                    f"\n\n📊 Bugungi bepul AI savollari: "
+                    f"{question_count}/5"
+                )
+            else:
+                limit_text = (
+                    "\n\n⭐ Premium — AI savollariga limit yo'q"
+                )
+
+            await update.message.reply_text(
+                f"{answer}{limit_text}"
+            )
+
         else:
             await update.message.reply_text(
-                f"❌ Xato: {result}"
+                f"❌ Gemini xatosi ({response.status_code}):\n{result}"
             )
 
     except Exception as e:
+        print("❌ AI ERROR:", e)
+
         await update.message.reply_text(
-            f"❌ Xato: {e}"
+            f"❌ AI bilan bog'lanishda xatolik:\n{e}"
         )
 
 app = Application.builder().token(TOKEN).build()
