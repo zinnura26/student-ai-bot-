@@ -191,7 +191,7 @@ async def uz_menu(update: Update):
     keyboard = [
         ["🤖 AI yordamchi", "🌍 Tarjimon"],
         ["🧠 Aqlli matematika", "📄 PDF / Hujjat"],
-        ["📝 Referat", "💻 Dasturlash"],
+        ["📚 Yozma ishlar", "💻 Dasturlash"],
         ["⚙️ Sozlamalar", "⭐ Premium"],
     ]
 
@@ -212,7 +212,7 @@ async def en_menu(update: Update):
     keyboard = [
         ["🤖 AI Assistant", "🌍 Translator"],
         ["🧠 Smart Math", "📄 PDF / Documents"],
-        ["📝 Essay / Report", "💻 Programming"],
+        ["📚 Written Works", "💻 Programming"],
         ["⚙️ Settings", "⭐ Premium"],
     ]
 
@@ -233,7 +233,7 @@ async def ru_menu(update: Update):
     keyboard = [
         ["🤖 AI Помощник", "🌍 Переводчик"],
         ["🧠 Умная математика", "📄 PDF / Документы"],
-        ["📝 Реферат", "💻 Программирование"],
+        ["📚 Письменные работы", "💻 Программирование"],
         ["⚙️ Настройки", "⭐ Premium"],
     ]
 
@@ -2397,6 +2397,48 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = Application.builder().token(TOKEN).build()
 
 
+async def writing_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "en":
+        text = (
+            "📚 WRITTEN WORKS\n\n"
+            "Choose the type of work you want to prepare:"
+        )
+        keyboard = [
+            ["📝 Essay", "📖 Independent Work"],
+            ["📄 Report", "⬅️ Back"]
+        ]
+
+    elif lang == "ru":
+        text = (
+            "📚 ПИСЬМЕННЫЕ РАБОТЫ\n\n"
+            "Выберите тип работы:"
+        )
+        keyboard = [
+            ["📝 Эссе", "📖 Самостоятельная работа"],
+            ["📄 Реферат", "⬅️ Назад"]
+        ]
+
+    else:
+        text = (
+            "📚 YOZMA ISHLAR\n\n"
+            "Tayyorlamoqchi bo‘lgan ish turini tanlang:"
+        )
+        keyboard = [
+            ["📝 Esse", "📖 Mustaqil ish"],
+            ["📄 Referat", "⬅️ Orqaga"]
+        ]
+
+    await update.message.reply_text(
+        text,
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+    )
+
+
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
@@ -2467,6 +2509,24 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         return
+
+    # 📚 YOZMA ISHLAR
+    if text in [
+        "📚 Yozma ishlar",
+        "📚 Written Works",
+        "📚 Письменные работы"
+    ]:
+        context.user_data["pdf_mode"] = False
+        context.user_data["pdf_question_mode"] = False
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+        context.user_data["writing_mode"] = True
+
+        await writing_menu(update, context)
+        return
+
 
     # 💻 Dasturlash
     if text in [
@@ -2543,6 +2603,45 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await language(update, context)
         return
+
+    # 📚 YOZMA ISHLAR REJIMI
+    if context.user_data.get("writing_mode"):
+
+        # 📝 ESSE
+        if text in [
+            "📝 Esse",
+            "📝 Essay",
+            "📝 Эссе"
+        ]:
+            await update.message.reply_text(
+                "📝 Esse\n\n"
+                "Esse tayyorlash bo‘limi hozir ishga tushirilmoqda."
+            )
+            return
+
+        # 📖 MUSTAQIL ISH
+        if text in [
+            "📖 Mustaqil ish",
+            "📖 Independent Work",
+            "📖 Самостоятельная работа"
+        ]:
+            await update.message.reply_text(
+                "📖 Mustaqil ish\n\n"
+                "Mustaqil ish tayyorlash bo‘limi hozir ishga tushirilmoqda."
+            )
+            return
+
+        # 📄 REFERAT
+        if text in [
+            "📄 Referat",
+            "📄 Report",
+            "📄 Реферат"
+        ]:
+            await update.message.reply_text(
+                "📄 Referat\n\n"
+                "Referat tayyorlash bo‘limi hozir ishga tushirilmoqda."
+            )
+            return
 
     # 🌍 Agar tarjimon rejimi yoqilgan bo'lsa
     if context.user_data.get("translator_mode"):
