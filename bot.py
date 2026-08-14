@@ -81,6 +81,21 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 📄 REFERAT uchun kunlik limit
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN report_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN report_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     # 📝 PDF XULOSA uchun kunlik limit
     try:
         cursor.execute(
@@ -388,6 +403,174 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
     except Exception as e:
         print('❌ ESSAY ERROR:', e)
         await update.message.reply_text('❌ Esse tayyorlashda xatolik yuz berdi.')
+
+async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, topic: str):
+    user_id = update.effective_user.id
+    lang = context.user_data.get("language", "uz")
+    from datetime import date
+    today = date.today().isoformat()
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT report_count, report_last_date, premium_until FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            "INSERT INTO users (user_id, report_count, report_last_date) VALUES (?, 0, ?)",
+            (user_id, 0, today)
+        )
+        conn.commit()
+        report_count = 0
+        last_date = today
+        premium_until = None
+    else:
+        report_count = row[0] or 0
+        last_date = row[1]
+        premium_until = row[2]
+
+    if last_date != today:
+        report_count = 0
+        cursor.execute(
+            "UPDATE users SET report_count = 0, report_last_date = ? WHERE user_id = ?",
+            (today, user_id)
+        )
+        conn.commit()
+
+    premium_active = bool(premium_until and premium_until >= today)
+    daily_limit = 10 if premium_active else 2
+
+    if report_count >= daily_limit:
+        conn.close()
+
+        if lang == "en":
+            msg = (
+                "🔒 Your daily report limit has been reached.\n\n"
+                f"Today: {report_count}/{daily_limit} reports."
+            )
+        elif lang == "ru":
+            msg = (
+                "🔒 Ваш дневной лимит рефератов закончился.\n\n"
+                f"Сегодня: {report_count}/{daily_limit} рефератов."
+            )
+        else:
+            msg = (
+                "🔒 Bugungi referat limitingiz tugadi.\n\n"
+                f"Bugun: {report_count}/{daily_limit} ta referat."
+            )
+
+        await update.message.reply_text(msg)
+        return
+
+    conn.close()
+
+    if lang == "en":
+        waiting = "⏳ AI is preparing your report..."
+        title = "📄 REPORT"
+        prompt = (
+            "You are Student AI, an academic writing assistant. "
+            "Write a detailed, clear and well-structured academic report in English "
+            "for a student. Include a title, introduction, main sections, "
+            "important information, conclusion and references section. "
+            "Keep the content informative, natural and suitable for student study.\n\n"
+            f"TOPIC:\n{topic}"
+        )
+
+    elif lang == "ru":
+        waiting = "⏳ AI готовит ваш реферат..."
+        title = "📄 РЕФЕРАТ"
+        prompt = (
+            "Ты Student AI, помощник по академическому письму. "
+            "Напиши подробный, понятный и хорошо структурированный реферат "
+            "на русском языке для студента. Включи заголовок, введение, "
+            "основные разделы, важную информацию, заключение и список литературы. "
+            "Содержание должно быть информативным и подходить для учебы.\n\n"
+            f"ТЕМА:\n{topic}"
+        )
+
+    else:
+        waiting = "⏳ AI referatingizni tayyorlamoqda..."
+        title = "📄 REFERAT"
+        prompt = (
+            "Sen Student AI, akademik yozuv yordamchisisan. "
+            "Talaba uchun o‘zbek tilida batafsil, mazmunli va yaxshi "
+            "tuzilgan referat yoz. Unda sarlavha, kirish, asosiy bo‘limlar, "
+            "muhim ma’lumotlar, xulosa va foydalanilgan adabiyotlar bo‘lsin. "
+            "Mavzuni tushunarli va o‘quv uchun foydali tarzda yorit.\n\n"
+            f"MAVZU:\n{topic}"
+        )
+
+    await update.message.reply_text(waiting)
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.6-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        if response.status_code != 200:
+            await update.message.reply_text(
+                f"❌ Gemini xatosi: {response.status_code}"
+            )
+            return
+
+        if "candidates" not in result:
+            await update.message.reply_text(
+                "❌ Referat tayyorlashda javob olinmadi."
+            )
+            return
+
+        answer = result["candidates"][0]["content"]["parts"][0]["text"]
+
+        conn = sqlite3.connect("student_ai.db")
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "UPDATE users SET report_count = ?, report_last_date = ? WHERE user_id = ?",
+            (report_count + 1, today, user_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        await update.message.reply_text(
+            f"{title}\n\n{answer}\n\n"
+            f"📊 Bugungi foydalanish: {report_count + 1}/{daily_limit}"
+        )
+
+    except Exception as e:
+        print("❌ REPORT ERROR:", e)
+        await update.message.reply_text(
+            "❌ Referat tayyorlashda xatolik yuz berdi."
+        )
 
 async def programming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
@@ -2733,6 +2916,18 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await essay_generator(update, context, topic)
         return
 
+    # 📄 REFERAT MAVZUSI
+    if context.user_data.get("report_topic_mode"):
+        topic = text.strip()
+
+        if not topic:
+            await update.message.reply_text("❌ Referat mavzusini yozing.")
+            return
+
+        context.user_data["report_topic_mode"] = False
+        await report_generator(update, context, topic)
+        return
+
     # 📚 YOZMA ISHLAR REJIMI
     if context.user_data.get("writing_mode"):
 
@@ -2786,10 +2981,30 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📄 Report",
             "📄 Реферат"
         ]:
-            await update.message.reply_text(
-                "📄 Referat\n\n"
-                "Referat tayyorlash bo‘limi hozir ishga tushirilmoqda."
-            )
+            context.user_data["report_topic_mode"] = True
+
+            lang = context.user_data.get("language", "uz")
+
+            if lang == "en":
+                msg = (
+                    "📄 REPORT\n\n"
+                    "Send the topic of your report.\n\n"
+                    "Example: The role of artificial intelligence in education"
+                )
+            elif lang == "ru":
+                msg = (
+                    "📄 РЕФЕРАТ\n\n"
+                    "Отправьте тему реферата.\n\n"
+                    "Например: Роль искусственного интеллекта в образовании"
+                )
+            else:
+                msg = (
+                    "📄 REFERAT\n\n"
+                    "Referat mavzusini yuboring.\n\n"
+                    "Masalan: Sun’iy intellektning ta’limdagi o‘rni"
+                )
+
+            await update.message.reply_text(msg)
             return
 
     # 🌍 Agar tarjimon rejimi yoqilgan bo'lsa
