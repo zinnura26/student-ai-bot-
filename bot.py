@@ -190,7 +190,7 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def uz_menu(update: Update):
     keyboard = [
         ["🤖 AI yordamchi", "🌍 Tarjimon"],
-        ["🧮 Kalkulyator", "📄 PDF / Hujjat"],
+        ["🧠 Aqlli matematika", "📄 PDF / Hujjat"],
         ["📝 Referat", "💻 Dasturlash"],
         ["⚙️ Sozlamalar", "⭐ Premium"],
     ]
@@ -211,7 +211,7 @@ async def uz_menu(update: Update):
 async def en_menu(update: Update):
     keyboard = [
         ["🤖 AI Assistant", "🌍 Translator"],
-        ["🧮 Calculator", "📄 PDF / Documents"],
+        ["🧠 Smart Math", "📄 PDF / Documents"],
         ["📝 Essay / Report", "💻 Programming"],
         ["⚙️ Settings", "⭐ Premium"],
     ]
@@ -232,7 +232,7 @@ async def en_menu(update: Update):
 async def ru_menu(update: Update):
     keyboard = [
         ["🤖 AI Помощник", "🌍 Переводчик"],
-        ["🧮 Калькулятор", "📄 PDF / Документы"],
+        ["🧠 Умная математика", "📄 PDF / Документы"],
         ["📝 Реферат", "💻 Программирование"],
         ["⚙️ Настройки", "⭐ Premium"],
     ]
@@ -555,58 +555,223 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get("calculator_mode"):
         return
 
-    try:
-        import ast
-        import operator as op
+    import requests
+    from datetime import date
 
-        operators = {
-            ast.Add: op.add,
-            ast.Sub: op.sub,
-            ast.Mult: op.mul,
-            ast.Div: op.truediv,
-            ast.Pow: op.pow,
-            ast.Mod: op.mod,
-            ast.USub: op.neg,
-            ast.UAdd: op.pos,
-        }
+    user_id = update.effective_user.id
+    today = str(date.today())
 
-        def calculate(node):
-            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-                return node.value
+    question_count, last_date, premium_until = get_user(user_id)
 
-            if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
-                return operators[type(node.op)](calculate(node.operand))
+    # ⭐ Premium holatini tekshirish
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
 
-            if isinstance(node, ast.BinOp) and type(node.op) in operators:
-                return operators[type(node.op)](
-                    calculate(node.left),
-                    calculate(node.right)
+    # 🆓 Bepul limit
+    if not premium_active:
+
+        if last_date != today:
+            question_count = 0
+            update_question_count(user_id, 0, today)
+
+        if question_count >= 5:
+            if lang == "uz":
+                limit_text = (
+                    "⛔ Bugungi Aqlli matematika limitingiz tugadi.\n\n"
+                    "⭐ Premium orqali matematikadan cheksiz foydalanishingiz mumkin."
+                )
+            elif lang == "en":
+                limit_text = (
+                    "⛔ Your free Smart Math limit for today is over.\n\n"
+                    "⭐ Premium gives you unlimited mathematics."
+                )
+            else:
+                limit_text = (
+                    "⛔ Ваш бесплатный лимит Умной математики на сегодня закончился.\n\n"
+                    "⭐ Premium даёт неограниченный доступ к математике."
                 )
 
-            raise ValueError("Noto'g'ri matematik ifoda")
+            await update.message.reply_text(limit_text)
+            return
 
-        tree = ast.parse(text, mode="eval")
-        result = calculate(tree.body)
+    # 🧠 Aqlli matematika uchun maxsus prompt
+    if lang == "uz":
+        prompt = (
+            "Sen Student AI ichidagi 'Aqlli matematika' yordamchisisan. "
+            "Asosiy vazifang foydalanuvchining matematika bilan bog'liq savollarini "
+            "aniq, tushunarli va bosqichma-bosqich yechish.\n\n"
 
-        await update.message.reply_text(
-            f"🧮 Natija: {result}"
+            "Quyidagi mavzularda yordam ber: "
+            "arifmetik amallar, tenglamalar, tengsizliklar, kasrlar, foizlar, "
+            "darajalar, ildizlar, algebra, geometriya, trigonometriya, "
+            "funksiyalar, formulalar, hosila, integral va boshqa matematika masalalari.\n\n"
+
+            "Javob qoidalari:\n"
+            "• Har bir hisoblashni aniq tekshir.\n"
+            "• Murakkab masalani bosqichma-bosqich tushuntir.\n"
+            "• Keraksiz uzun javob bermagin.\n"
+            "• Yakuniy javobni aniq ko'rsat.\n"
+            "• Oddiy va chiroyli Telegram formatidan foydalan.\n"
+            "• LaTeX ishlatma.\n"
+            "• $ belgilarini ishlatma.\n"
+            "• \\text{} kabi belgilarni ishlatma.\n"
+            "• Kvadrat qavslar [ ] bilan matematik ifoda yozma.\n"
+            "• Matematik amallarda oddiy belgilarni ishlat: +, −, ×, ÷, =, •.\n"
+            "• Zarur bo'lsa raqamlangan qadamlar va • belgilaridan foydalan.\n"
+            "• Formulalarni oddiy matn ko'rinishida yoz.\n\n"
+
+            f"Foydalanuvchi savoli:\n{text}"
         )
 
-    except ZeroDivisionError:
-        await update.message.reply_text(
-            "❌ Nolga bo‘lish mumkin emas."
+    elif lang == "en":
+        prompt = (
+            "You are the 'Smart Math' assistant inside Student AI. "
+            "Your main task is to solve mathematics questions accurately, clearly "
+            "and step by step.\n\n"
+
+            "Help with arithmetic, equations, inequalities, fractions, percentages, "
+            "powers, roots, algebra, geometry, trigonometry, functions, formulas, "
+            "derivatives, integrals and other mathematics problems.\n\n"
+
+            "Answer rules:\n"
+            "• Check every calculation carefully.\n"
+            "• Explain difficult problems step by step.\n"
+            "• Do not make the answer unnecessarily long.\n"
+            "• Clearly show the final answer.\n"
+            "• Use simple Telegram-friendly formatting.\n"
+            "• Do not use LaTeX.\n"
+            "• Do not use $ signs.\n"
+            "• Do not use \\text{}.\n"
+            "• Do not use square brackets [ ] for mathematical expressions.\n"
+            "• Use simple symbols such as +, −, ×, ÷, = and •.\n\n"
+
+            f"User question:\n{text}"
         )
 
-    except Exception:
-        if lang == "uz":
-            msg = "❌ Matematik ifodani tushunmadim.\nMasalan: 25 + 17"
-        elif lang == "en":
-            msg = "❌ I couldn't understand the expression.\nExample: 25 + 17"
+    else:
+        prompt = (
+            "Ты помощник 'Умная математика' внутри Student AI. "
+            "Твоя основная задача — точно, понятно и пошагово решать "
+            "математические задачи пользователя.\n\n"
+
+            "Помогай с арифметикой, уравнениями, неравенствами, дробями, "
+            "процентами, степенями, корнями, алгеброй, геометрией, "
+            "тригонометрией, функциями, формулами, производными, интегралами "
+            "и другими математическими задачами.\n\n"
+
+            "Правила ответа:\n"
+            "• Проверяй вычисления.\n"
+            "• Сложные задачи объясняй пошагово.\n"
+            "• Не делай ответ unnecessarily длинным.\n"
+            "• Чётко показывай итоговый ответ.\n"
+            "• Не используй LaTeX.\n"
+            "• Не используй знаки $.\n"
+            "• Не используй \\text{}.\n"
+            "• Не используй квадратные скобки [ ] для математических выражений.\n"
+            "• Используй простые знаки: +, −, ×, ÷, = и •.\n\n"
+
+            f"Вопрос пользователя:\n{text}"
+        )
+
+    if lang == "uz":
+        wait_text = "⏳ Aqlli matematika hisoblayapti..."
+    elif lang == "en":
+        wait_text = "⏳ Smart Math is calculating..."
+    else:
+        wait_text = "⏳ Умная математика считает..."
+
+    await update.message.reply_text(wait_text)
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.6-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "thinkingConfig": {
+                "thinkingLevel": "minimal"
+            }
+        }
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        print("🧠 SMART MATH GEMINI:", result)
+
+        if "candidates" in result:
+            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+
+            # 🧹 Keraksiz matematik formatlarini tozalash
+            answer = answer.replace("$", "")
+            answer = answer.replace("\\text{", "")
+            answer = answer.replace("\\textbf{", "")
+            answer = answer.replace("\\(", "")
+            answer = answer.replace("\\)", "")
+            answer = answer.replace("\\[", "")
+            answer = answer.replace("\\]", "")
+
+            # 🆓 Faqat muvaffaqiyatli javobdan keyin limitni oshiramiz
+            if not premium_active:
+                question_count += 1
+                update_question_count(
+                    user_id,
+                    question_count,
+                    today
+                )
+
+                limit_text = (
+                    f"\n\n📊 Bugungi bepul matematik savollar: "
+                    f"{question_count}/5"
+                )
+            else:
+                limit_text = (
+                    "\n\n⭐ Premium — Aqlli matematikadan "
+                    "foydalanish cheksiz"
+                )
+
+            await update.message.reply_text(
+                answer + limit_text
+            )
+
         else:
-            msg = "❌ Не удалось понять выражение.\nПример: 25 + 17"
+            await update.message.reply_text(
+                "❌ Matematikani hisoblashda xatolik yuz berdi.\n"
+                "Iltimos, birozdan keyin qayta urinib ko'ring."
+            )
 
-        await update.message.reply_text(msg)
+    except Exception as e:
+        print("❌ SMART MATH ERROR:", e)
 
+        await update.message.reply_text(
+            "❌ Matematikani hisoblashda xatolik yuz berdi.\n"
+            "Iltimos, birozdan keyin qayta urinib ko'ring."
+        )
 
 async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("language", "uz")
@@ -2265,6 +2430,42 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["pdf_question_mode"] = False
 
         await pdf_menu(update, context)
+        return
+
+    # 🧮 KALKULYATOR — 3 TIL
+    if text in [
+        "🧠 Aqlli matematika",
+        "🧠 Smart Math",
+        "🧠 Умная математика"
+    ]:
+        context.user_data["pdf_mode"] = False
+        context.user_data["pdf_question_mode"] = False
+        context.user_data["calculator_mode"] = True
+        context.user_data["programming_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["ai_mode"] = False
+
+        lang = context.user_data.get("language", "uz")
+
+        if lang == "uz":
+            await update.message.reply_text(
+                "🧠 Aqlli matematika tayyor.\\n\\n"
+                "Matematik ifodani yozing.\\n"
+                "Masalan: 25 + 17 yoki 12 * 8"
+            )
+        elif lang == "en":
+            await update.message.reply_text(
+                "🧠 Smart Math is ready.\\n\\n"
+                "Enter a mathematical expression.\\n"
+                "Example: 25 + 17 or 12 * 8"
+            )
+        else:
+            await update.message.reply_text(
+                "🧠 Умная математика готов.\\n\\n"
+                "Введите математическое выражение.\\n"
+                "Например: 25 + 17 или 12 * 8"
+            )
+
         return
 
     # 💻 Dasturlash
