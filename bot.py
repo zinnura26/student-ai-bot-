@@ -566,10 +566,19 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         conn.commit()
         conn.close()
 
-        await update.message.reply_text(
+        full_text = (
             f"{title}\n\n{answer}\n\n"
             f"📊 Bugungi foydalanish: {report_count + 1}/{daily_limit}"
         )
+
+        # Telegram 4096 belgidan uzun xabarni qabul qilmaydi.
+        # Shuning uchun uzun referatni bo'lib yuboramiz.
+        max_length = 4000
+
+        for i in range(0, len(full_text), max_length):
+            await update.message.reply_text(
+                full_text[i:i + max_length]
+            )
 
     except Exception as e:
         print("❌ REPORT ERROR:", type(e).__name__, e)
