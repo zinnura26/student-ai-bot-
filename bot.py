@@ -23,6 +23,8 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_WRITING_API_KEY = os.getenv("GEMINI_WRITING_API_KEY")
+GEMINI_PROGRAMMING_API_KEY = os.getenv("GEMINI_PROGRAMMING_API_KEY")
+GEMINI_AI_API_KEY = os.getenv("GEMINI_AI_API_KEY")
 
 def init_db():
     print("🔵 REPORT: DB ulanish boshladi")
