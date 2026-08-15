@@ -24,8 +24,10 @@ TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def init_db():
+    print("🔵 REPORT: DB ulanish boshladi")
     conn = sqlite3.connect("student_ai.db")
     cursor = conn.cursor()
+    print("🟢 REPORT: DB ulanish OK")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -322,6 +324,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
         (user_id,)
     )
     row = cursor.fetchone()
+    print("🟢 REPORT: SELECT OK, row =", row)
 
     if row is None:
         cursor.execute(
@@ -468,6 +471,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         return
 
     conn.close()
+    print("🟢 REPORT: DB yopildi, Gemini qismiga o‘tyapti")
 
     if lang == "en":
         waiting = "⏳ AI is preparing your report..."
