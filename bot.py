@@ -3100,15 +3100,15 @@ print("✅ Student AI ishga tushdi...")
 async def error_handler(update, context):
     import traceback
 
-    print("❌❌❌ GLOBAL ERROR ❌❌❌")
-    print("ERROR TYPE:", type(context.error).__name__)
-    print("ERROR:", repr(context.error))
-    print("TRACEBACK:")
-    traceback.print_exception(
-        type(context.error),
-        context.error,
-        context.error.__traceback__
+    error_text = "".join(
+        traceback.format_exception(
+            type(context.error),
+            context.error,
+            context.error.__traceback__
+        )
     )
+
+    print("❌ GLOBAL ERROR FULL:", repr(error_text))
 
 app.add_error_handler(error_handler)
 
