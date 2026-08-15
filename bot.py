@@ -426,7 +426,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     if row is None:
         cursor.execute(
             "INSERT INTO users (user_id, report_count, report_last_date) VALUES (?, 0, ?)",
-            (user_id, 0, today)
+            (user_id, today)
         )
         conn.commit()
         report_count = 0
