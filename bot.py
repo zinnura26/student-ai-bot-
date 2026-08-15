@@ -22,6 +22,7 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_WRITING_API_KEY = os.getenv("GEMINI_WRITING_API_KEY")
 
 def init_db():
     print("🔵 REPORT: DB ulanish boshladi")
@@ -386,7 +387,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
 
     url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent'
     headers = {
-        'x-goog-api-key': GEMINI_API_KEY,
+        'x-goog-api-key': GEMINI_WRITING_API_KEY,
         'Content-Type': 'application/json'
     }
     data = {'contents': [{'parts': [{'text': prompt}]}]}
@@ -532,7 +533,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     )
 
     headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
+        "x-goog-api-key": GEMINI_WRITING_API_KEY,
         "Content-Type": "application/json"
     }
 
@@ -714,7 +715,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
     )
 
     headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
+        "x-goog-api-key": GEMINI_WRITING_API_KEY,
         "Content-Type": "application/json"
     }
 
