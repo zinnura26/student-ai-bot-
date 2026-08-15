@@ -960,7 +960,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
+        "x-goog-api-key": GEMINI_PROGRAMMING_API_KEY,
         "Content-Type": "application/json"
     }
 
@@ -2836,7 +2836,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
+        "x-goog-api-key": GEMINI_AI_API_KEY,
         "Content-Type": "application/json"
     }
 
