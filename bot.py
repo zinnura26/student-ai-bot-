@@ -98,6 +98,21 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 📖 MUSTAQIL ISH uchun kunlik limit
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN independent_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN independent_last_date TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     # 📝 PDF XULOSA uchun kunlik limit
     try:
         cursor.execute(
@@ -584,6 +599,188 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         print("❌ REPORT ERROR:", type(e).__name__, e)
         await update.message.reply_text(
             f"❌ Referat xatosi:\n{type(e).__name__}: {e}"
+        )
+
+
+async def independent_work_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, topic: str):
+    print("🚀 INDEPENDENT WORK GENERATOR ISHLADI:", topic)
+
+    user_id = update.effective_user.id
+    lang = context.user_data.get("language", "uz")
+
+    from datetime import date
+    today = date.today().isoformat()
+
+    conn = sqlite3.connect("student_ai.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT independent_count, independent_last_date, premium_until FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            "INSERT INTO users (user_id, independent_count, independent_last_date) VALUES (?, ?, ?)",
+            (user_id, 0, today)
+        )
+        conn.commit()
+        independent_count = 0
+        last_date = today
+        premium_until = None
+    else:
+        independent_count = row[0] or 0
+        last_date = row[1]
+        premium_until = row[2]
+
+    if last_date != today:
+        independent_count = 0
+        cursor.execute(
+            "UPDATE users SET independent_count = 0, independent_last_date = ? WHERE user_id = ?",
+            (today, user_id)
+        )
+        conn.commit()
+
+    premium_active = bool(premium_until and premium_until >= today)
+    daily_limit = 10 if premium_active else 2
+
+    if independent_count >= daily_limit:
+        conn.close()
+
+        if lang == "en":
+            msg = (
+                "🔒 Your daily independent work limit has been reached.\n\n"
+                f"Today: {independent_count}/{daily_limit}"
+            )
+        elif lang == "ru":
+            msg = (
+                "🔒 Ваш дневной лимит самостоятельных работ закончился.\n\n"
+                f"Сегодня: {independent_count}/{daily_limit}"
+            )
+        else:
+            msg = (
+                "🔒 Bugungi mustaqil ish limitingiz tugadi.\n\n"
+                f"Bugun: {independent_count}/{daily_limit} ta"
+            )
+
+        await update.message.reply_text(msg)
+        return
+
+    conn.close()
+
+    if lang == "en":
+        waiting = "⏳ AI is preparing your independent work..."
+        title = "📖 INDEPENDENT WORK"
+        prompt = (
+            "You are Student AI, an academic writing assistant. "
+            "Write a detailed, clear and well-structured independent work "
+            "in English for a student. Include a title, plan, introduction, "
+            "main sections, conclusion and references. "
+            "Make it informative and suitable for student study.\n\n"
+            f"TOPIC:\n{topic}"
+        )
+
+    elif lang == "ru":
+        waiting = "⏳ AI готовит вашу самостоятельную работу..."
+        title = "📖 САМОСТОЯТЕЛЬНАЯ РАБОТА"
+        prompt = (
+            "Ты Student AI, помощник по академическому письму. "
+            "Напиши подробную, понятную и хорошо структурированную "
+            "самостоятельную работу на русском языке для студента. "
+            "Включи заголовок, план, введение, основные разделы, "
+            "заключение и список литературы.\n\n"
+            f"ТЕМА:\n{topic}"
+        )
+
+    else:
+        waiting = "⏳ AI mustaqil ishingizni tayyorlamoqda..."
+        title = "📖 MUSTAQIL ISH"
+        prompt = (
+            "Sen Student AI, akademik yozuv yordamchisisan. "
+            "Talaba uchun o‘zbek tilida batafsil, mazmunli va yaxshi "
+            "tuzilgan mustaqil ish yoz. Unda mavzu nomi, reja, kirish, "
+            "asosiy bo‘limlar, muhim ma'lumotlar, xulosa va foydalanilgan "
+            "adabiyotlar bo‘lsin. Mavzuni tushunarli va o‘quv uchun foydali "
+            "tarzda yorit.\n\n"
+            f"MAVZU:\n{topic}"
+        )
+
+    await update.message.reply_text(waiting)
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-3.6-flash:generateContent"
+    )
+
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+
+        result = response.json()
+
+        if response.status_code != 200:
+            await update.message.reply_text(
+                f"❌ Gemini xatosi: {response.status_code}"
+            )
+            return
+
+        if "candidates" not in result:
+            await update.message.reply_text(
+                "❌ Mustaqil ish tayyorlashda javob olinmadi."
+            )
+            return
+
+        answer = result["candidates"][0]["content"]["parts"][0]["text"]
+
+        conn = sqlite3.connect("student_ai.db")
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "UPDATE users SET independent_count = ?, independent_last_date = ? WHERE user_id = ?",
+            (independent_count + 1, today, user_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        full_text = (
+            f"{title}\n\n"
+            f"{answer}\n\n"
+            f"📊 Bugungi foydalanish: {independent_count + 1}/{daily_limit}"
+        )
+
+        # Telegram xabar uzunligini oshirib yubormaslik uchun bo'lib yuboramiz.
+        max_length = 4000
+
+        for i in range(0, len(full_text), max_length):
+            await update.message.reply_text(
+                full_text[i:i + max_length]
+            )
+
+    except Exception as e:
+        print("❌ INDEPENDENT WORK ERROR:", type(e).__name__, e)
+        await update.message.reply_text(
+            f"❌ Mustaqil ish xatosi:\n{type(e).__name__}: {e}"
         )
 
 async def programming(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2942,6 +3139,20 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await report_generator(update, context, topic)
         return
 
+    # 📖 MUSTAQIL ISH MAVZUSI
+    if context.user_data.get("independent_topic_mode"):
+        topic = text.strip()
+
+        if not topic:
+            await update.message.reply_text(
+                "❌ Mustaqil ish mavzusini yozing."
+            )
+            return
+
+        context.user_data["independent_topic_mode"] = False
+        await independent_work_generator(update, context, topic)
+        return
+
     # 📚 YOZMA ISHLAR REJIMI
     if context.user_data.get("writing_mode"):
 
@@ -2983,10 +3194,30 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📖 Independent Work",
             "📖 Самостоятельная работа"
         ]:
-            await update.message.reply_text(
-                "📖 Mustaqil ish\n\n"
-                "Mustaqil ish tayyorlash bo‘limi hozir ishga tushirilmoqda."
-            )
+            context.user_data["independent_topic_mode"] = True
+
+            lang = context.user_data.get("language", "uz")
+
+            if lang == "en":
+                msg = (
+                    "📖 INDEPENDENT WORK\n\n"
+                    "Send the topic of your independent work.\n\n"
+                    "Example: The importance of digital technologies in education"
+                )
+            elif lang == "ru":
+                msg = (
+                    "📖 САМОСТОЯТЕЛЬНАЯ РАБОТА\n\n"
+                    "Отправьте тему самостоятельной работы.\n\n"
+                    "Например: Значение цифровых технологий в образовании"
+                )
+            else:
+                msg = (
+                    "📖 MUSTAQIL ISH\n\n"
+                    "Mustaqil ish mavzusini yuboring.\n\n"
+                    "Masalan: Ta’limda raqamli texnologiyalarning ahamiyati"
+                )
+
+            await update.message.reply_text(msg)
             return
 
         # 📄 REFERAT
