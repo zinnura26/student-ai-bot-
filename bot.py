@@ -1300,6 +1300,19 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         print("🧠 SMART MATH GEMINI:", result)
 
+        # ⚠️ Gemini quota / API limitini alohida aniqlash
+        if response.status_code == 429 or result.get("error", {}).get("code") == 429:
+            print("⚠️ SMART MATH QUOTA:", result)
+
+            await update.message.reply_text(
+                "⏳ Aqlli matematika hozircha vaqtincha band.\n\n"
+                "🔄 AI xizmatining bepul foydalanish limiti to‘lib qolgan.\n"
+                "Bu sizning savolingiz bilan bog‘liq xato emas.\n\n"
+                "🕐 Xizmat limiti qayta tiklangach, Aqlli matematika yana odatdagidek ishlaydi.\n\n"
+                "💡 Iltimos, keyinroq yana urinib ko‘ring."
+            )
+            return
+
         if "candidates" in result:
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -1339,8 +1352,10 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print("❌ SMART MATH GEMINI JAVOBIDA CANDIDATES YO'Q:", result)
 
             await update.message.reply_text(
-                "❌ Matematikani hisoblashda xatolik yuz berdi.\n"
-                "Iltimos, birozdan keyin qayta urinib ko'ring."
+                "⚠️ Aqlli matematika hozircha javob bera olmayapti.\n\n"
+                "🔄 AI xizmatining vaqtinchalik limiti to‘lib qolgan.\n"
+                "Iltimos, birozdan keyin yana urinib ko‘ring.\n\n"
+                "💡 Xizmatingiz qayta tiklangach, savolingizga odatdagidek javob beramiz."
             )
 
     except Exception as e:
