@@ -837,8 +837,8 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    import requests
     from datetime import date
+    import asyncio
 
     user_id = update.effective_user.id
     today = str(date.today())
@@ -976,78 +976,140 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     }
 
+    # 🔄 Gemini band bo'lsa avtomatik qayta urinish
+    max_retries = 3
+    retry_delays = [2, 5, 10]
+
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
+        response = None
+        result = None
 
-        result = response.json()
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
 
-        print("🔍 PROGRAMMING GEMINI:", result)
+                result = response.json()
 
-        if response.status_code != 200:
+                print(
+                    f"🔍 PROGRAMMING GEMINI "
+                    f"attempt {attempt + 1}/{max_retries}: "
+                    f"{response.status_code}"
+                )
+
+                # Muvaffaqiyat
+                if response.status_code == 200:
+                    break
+
+                # Server band / vaqtinchalik xato
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < max_retries - 1:
+                        await update.message.reply_text(
+                            "⏳ AI serveri hozir band. "
+                            "Qayta urinib ko'ryapman..."
+                        )
+                        await asyncio.sleep(retry_delays[attempt])
+                        continue
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(
+                    f"⏱️ PROGRAMMING TIMEOUT "
+                    f"attempt {attempt + 1}/{max_retries}"
+                )
+
+                if attempt < max_retries - 1:
+                    await update.message.reply_text(
+                        "⏳ AI serveridan javob kelmadi. "
+                        "Qayta urinib ko'ryapman..."
+                    )
+                    await asyncio.sleep(retry_delays[attempt])
+                    continue
+
+                await update.message.reply_text(
+                    "⏳ AI serveri hozir javob berishga ulgurmayapti.\n\n"
+                    "Birozdan keyin yana urinib ko'ring."
+                )
+                return
+
+        if response is None or result is None:
             await update.message.reply_text(
-                f"❌ Gemini xatosi ({response.status_code}):\n"
-                f"{result}"
+                "❌ AI bilan bog'lanib bo'lmadi. "
+                "Birozdan keyin yana urinib ko'ring."
             )
             return
 
-        if "candidates" in result:
-            answer = (
-                result["candidates"][0]
-                ["content"]["parts"][0]["text"]
-            )
-
-            if not premium_active:
-                programming_count += 1
-
-                conn = sqlite3.connect("student_ai.db")
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    """
-                    UPDATE users
-                    SET programming_count = ?,
-                        programming_last_date = ?
-                    WHERE user_id = ?
-                    """,
-                    (programming_count, today, user_id)
-                )
-
-                conn.commit()
-                conn.close()
-
-                limit_text = (
-                    f"\n\n📊 Bugungi bepul dasturlash savollari: "
-                    f"{programming_count}/5"
+        if response.status_code != 200:
+            if response.status_code in [429, 500, 502, 503, 504]:
+                await update.message.reply_text(
+                    "😔 AI serveri hozir juda band.\n\n"
+                    "🔄 Bir necha soniyadan keyin yana urinib ko'ring."
                 )
             else:
-                limit_text = (
-                    "\n\n⭐ Premium — dasturlash limiti yo'q"
+                await update.message.reply_text(
+                    f"❌ Gemini xatosi ({response.status_code}).\n\n"
+                    "Birozdan keyin yana urinib ko'ring."
                 )
+            return
 
+        if "candidates" not in result:
             await update.message.reply_text(
-                f"💻 Javob:\n\n{answer}{limit_text}"
+                "😔 AI hozir javob tayyorlay olmadi.\n\n"
+                "Birozdan keyin yana urinib ko'ring."
+            )
+            return
+
+        answer = (
+            result["candidates"][0]
+            ["content"]["parts"][0]["text"]
+        )
+
+        # 🆓 Faqat muvaffaqiyatli javobdan keyin limit oshadi
+        if not premium_active:
+            programming_count += 1
+
+            conn = sqlite3.connect("student_ai.db")
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET programming_count = ?,
+                    programming_last_date = ?
+                WHERE user_id = ?
+                """,
+                (programming_count, today, user_id)
             )
 
+            conn.commit()
+            conn.close()
+
+            limit_text = (
+                f"\n\n📊 Bugungi bepul dasturlash savollari: "
+                f"{programming_count}/5"
+            )
         else:
-            await update.message.reply_text(
-                f"❌ Dasturlash AI xatosi:\n{result}"
+            limit_text = (
+                "\n\n⭐ Premium — dasturlash limiti yo'q"
             )
 
-    except requests.exceptions.Timeout:
         await update.message.reply_text(
-            "⏳ AI serveri javob berishga ulgurmayapti. "
-            "Birozdan keyin yana urinib ko'ring."
+            f"💻 Javob:\n\n{answer}{limit_text}"
         )
 
     except Exception as e:
+        print("❌ PROGRAMMING ERROR:", e)
+
         await update.message.reply_text(
-            f"❌ Xato: {e}"
+            "❌ Dasturlash yordamchisida vaqtinchalik xatolik yuz berdi.\n\n"
+            "Birozdan keyin yana urinib ko'ring."
         )
+
 
 async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -3005,21 +3067,39 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if lang == "uz":
             await update.message.reply_text(
-                "🧠 Aqlli matematika tayyor.\\n\\n"
-                "Matematik ifodani yozing.\\n"
-                "Masalan: 25 + 17 yoki 12 * 8"
+                "🧠 Aqlli matematika tayyor!\\n\\n"
+                "Oddiy hisob-kitobdan tortib murakkab matematik masalalargacha yuborishingiz mumkin.\\n\\n"
+                "• Tenglamalar va tengsizliklar\\n"
+                "• Kasrlar, foizlar, darajalar va ildizlar\\n"
+                "• Funksiyalar va matematik formulalar\\n"
+                "• Geometriya va trigonometriya\\n"
+                "• Hosila, integral va murakkab hisoblashlar\\n"
+                "• Bosqichma-bosqich matematik masalalar\\n\\n"
+                "📌 Masalangizni qanday bo‘lsa, shunday yozing — Aqlli matematika uni tushuntirib, yechishga yordam beradi."
             )
         elif lang == "en":
             await update.message.reply_text(
-                "🧠 Smart Math is ready.\\n\\n"
-                "Enter a mathematical expression.\\n"
-                "Example: 25 + 17 or 12 * 8"
+                "🧠 Smart Math is ready!\\n\\n"
+                "You can send anything from simple calculations to complex mathematics.\\n\\n"
+                "• Equations and inequalities\\n"
+                "• Fractions, percentages, powers and roots\\n"
+                "• Functions and mathematical formulas\\n"
+                "• Geometry and trigonometry\\n"
+                "• Derivatives, integrals and advanced calculations\\n"
+                "• Step-by-step mathematical problems\\n\\n"
+                "📌 Send your problem as it is — Smart Math will help you understand and solve it."
             )
         else:
             await update.message.reply_text(
-                "🧠 Умная математика готов.\\n\\n"
-                "Введите математическое выражение.\\n"
-                "Например: 25 + 17 или 12 * 8"
+                "🧠 Умная математика готова!\\n\\n"
+                "Вы можете отправить всё — от простых вычислений до сложных математических задач.\\n\\n"
+                "• Уравнения и неравенства\\n"
+                "• Дроби, проценты, степени и корни\\n"
+                "• Функции и математические формулы\\n"
+                "• Геометрия и тригонометрия\\n"
+                "• Производные, интегралы и сложные вычисления\\n"
+                "• Пошаговое решение математических задач\\n\\n"
+                "📌 Отправьте задачу как есть — Умная математика поможет понять её и решить."
             )
 
         return
