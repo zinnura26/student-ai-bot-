@@ -1336,6 +1336,8 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
+            print("❌ SMART MATH GEMINI JAVOBIDA CANDIDATES YO'Q:", result)
+
             await update.message.reply_text(
                 "❌ Matematikani hisoblashda xatolik yuz berdi.\n"
                 "Iltimos, birozdan keyin qayta urinib ko'ring."
