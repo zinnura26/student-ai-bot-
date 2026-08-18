@@ -3032,8 +3032,238 @@ async def writing_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+
+
+# ============================================================
+# ⚙️ SOZLAMALAR
+# ============================================================
+
+async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "en":
+        keyboard = [
+            ["👤 My Profile"],
+            ["💎 Premium Status"],
+            ["ℹ️ About Student AI"],
+            ["⬅️ Back"],
+        ]
+        title = "⚙️ Settings\n\n👇 Choose a section:"
+    elif lang == "ru":
+        keyboard = [
+            ["👤 Мой профиль"],
+            ["💎 Статус Premium"],
+            ["ℹ️ О Student AI"],
+            ["⬅️ Назад"],
+        ]
+        title = "⚙️ Настройки\n\n👇 Выберите раздел:"
+    else:
+        keyboard = [
+            ["👤 Mening profilim"],
+            ["💎 Premium holati"],
+            ["ℹ️ Student AI haqida"],
+            ["⬅️ Orqaga"],
+        ]
+        title = "⚙️ Sozlamalar\n\n👇 Kerakli bo'limni tanlang:"
+
+    await update.message.reply_text(
+        title,
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+    )
+
+
+async def settings_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    lang = context.user_data.get("language", "uz")
+
+    _, _, premium_until = get_user(user_id)
+
+    if premium_until:
+        premium_text = "Faol" if lang == "uz" else (
+            "Active" if lang == "en" else "Активен"
+        )
+        premium_date = premium_until
+    else:
+        premium_text = "Faol emas" if lang == "uz" else (
+            "Not active" if lang == "en" else "Не активен"
+        )
+        premium_date = "—"
+
+    if lang == "en":
+        msg = (
+            "👤 My Profile\n\n"
+            f"🆔 Telegram ID: {user_id}\n"
+            "🌐 Language: English\n"
+            f"💎 Premium: {premium_text}\n"
+            f"📅 Premium until: {premium_date}"
+        )
+    elif lang == "ru":
+        msg = (
+            "👤 Мой профиль\n\n"
+            f"🆔 Telegram ID: {user_id}\n"
+            "🌐 Язык: Русский\n"
+            f"💎 Premium: {premium_text}\n"
+            f"📅 Premium до: {premium_date}"
+        )
+    else:
+        msg = (
+            "👤 Mening profilim\n\n"
+            f"🆔 Telegram ID: {user_id}\n"
+            "🌐 Til: O'zbekcha\n"
+            f"💎 Premium: {premium_text}\n"
+            f"📅 Premium muddati: {premium_date}"
+        )
+
+    await update.message.reply_text(msg)
+
+
+async def settings_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    lang = context.user_data.get("language", "uz")
+
+    _, _, premium_until = get_user(user_id)
+
+    if premium_until:
+        if lang == "en":
+            msg = (
+                "💎 Premium Status\n\n"
+                "✅ Status: Active\n"
+                f"📅 Valid until: {premium_until}\n\n"
+                "⭐ You can use Premium features."
+            )
+        elif lang == "ru":
+            msg = (
+                "💎 Статус Premium\n\n"
+                "✅ Статус: Активен\n"
+                f"📅 Действует до: {premium_until}\n\n"
+                "⭐ Вам доступны Premium-возможности."
+            )
+        else:
+            msg = (
+                "💎 Premium holati\n\n"
+                "✅ Holat: Faol\n"
+                f"📅 Amal qilish muddati: {premium_until}\n\n"
+                "⭐ Premium imkoniyatlaridan foydalanishingiz mumkin."
+            )
+    else:
+        if lang == "en":
+            msg = (
+                "💎 Premium Status\n\n"
+                "❌ Status: Not active\n\n"
+                "⭐ Open the Premium section to learn more."
+            )
+        elif lang == "ru":
+            msg = (
+                "💎 Статус Premium\n\n"
+                "❌ Статус: Не активен\n\n"
+                "⭐ Откройте раздел Premium, чтобы узнать больше."
+            )
+        else:
+            msg = (
+                "💎 Premium holati\n\n"
+                "❌ Holat: Faol emas\n\n"
+                "⭐ Batafsil ma'lumot uchun Premium bo'limini oching."
+            )
+
+    await update.message.reply_text(msg)
+
+
+async def settings_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("language", "uz")
+
+    if lang == "en":
+        msg = (
+            "ℹ️ About Student AI\n\n"
+            "🤖 Student AI — an intelligent assistant "
+            "created to help students.\n\n"
+            "🧠 AI Assistant\n"
+            "🧮 Smart Math\n"
+            "🌍 Translator\n"
+            "📄 PDF / Documents\n"
+            "📚 Written Works\n"
+            "💻 Programming\n\n"
+            "🚀 Student AI — your study assistant."
+        )
+    elif lang == "ru":
+        msg = (
+            "ℹ️ О Student AI\n\n"
+            "🤖 Student AI — интеллектуальный помощник "
+            "для студентов.\n\n"
+            "🧠 AI-помощник\n"
+            "🧮 Умная математика\n"
+            "🌍 Переводчик\n"
+            "📄 PDF / Документы\n"
+            "📚 Письменные работы\n"
+            "💻 Программирование\n\n"
+            "🚀 Student AI — ваш помощник в учёбе."
+        )
+    else:
+        msg = (
+            "ℹ️ Student AI haqida\n\n"
+            "🤖 Student AI — talabalar uchun yaratilgan "
+            "aqlli yordamchi.\n\n"
+            "🧠 AI yordamchi\n"
+            "🧮 Aqlli matematika\n"
+            "🌍 Tarjimon\n"
+            "📄 PDF / Hujjat\n"
+            "📚 Yozma ishlar\n"
+            "💻 Dasturlash\n\n"
+            "🚀 Student AI — o'qishdagi yordamchingiz."
+        )
+
+    await update.message.reply_text(msg)
+
+
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+
+    # ⚙️ SOZLAMALAR
+    if text in [
+        "⚙️ Sozlamalar",
+        "⚙️ Settings",
+        "⚙️ Настройки"
+    ]:
+        context.user_data["ai_mode"] = False
+        context.user_data["translator_mode"] = False
+        context.user_data["calculator_mode"] = False
+        context.user_data["programming_mode"] = False
+        context.user_data["writing_mode"] = False
+        context.user_data["pdf_mode"] = False
+        context.user_data["pdf_question_mode"] = False
+
+        await settings_menu(update, context)
+        return
+
+    # 👤 Mening profilim
+    if text in [
+        "👤 Mening profilim",
+        "👤 My Profile",
+        "👤 Мой профиль"
+    ]:
+        await settings_profile(update, context)
+        return
+
+    # 💎 Premium holati
+    if text in [
+        "💎 Premium holati",
+        "💎 Premium Status",
+        "💎 Статус Premium"
+    ]:
+        await settings_premium(update, context)
+        return
+
+    # ℹ️ Student AI haqida
+    if text in [
+        "ℹ️ Student AI haqida",
+        "ℹ️ About Student AI",
+        "ℹ️ О Student AI"
+    ]:
+        await settings_about(update, context)
+        return
+
 
     # 🤖 AI yordamchi
     if text in [
