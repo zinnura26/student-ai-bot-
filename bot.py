@@ -399,7 +399,17 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
         result = response.json()
 
         if response.status_code != 200:
-            await update.message.reply_text(f'❌ Gemini xatosi: {response.status_code}')
+            if response.status_code == 503:
+                await update.message.reply_text(
+                "😔 Student AI hozir biroz band.\n"
+                "⏳ So‘rovlar ko‘paygani sababli javob tayyorlash biroz kechikmoqda.\n"
+                "🔄 Iltimos, bir necha soniyadan keyin yana urinib ko‘ring.\n"
+                "💙 Noqulaylik uchun uzr!"
+                )
+            else:
+                await update.message.reply_text(
+                    f'❌ Gemini xatosi: {response.status_code}'
+                )
             return
 
         if 'candidates' not in result:
@@ -560,9 +570,17 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         result = response.json()
 
         if response.status_code != 200:
-            await update.message.reply_text(
-                f"❌ Gemini xatosi: {response.status_code}"
-            )
+            if response.status_code == 503:
+                await update.message.reply_text(
+                "😔 Student AI hozir biroz band.\n"
+                "⏳ So‘rovlar ko‘paygani sababli javob tayyorlash biroz kechikmoqda.\n"
+                "🔄 Iltimos, bir necha soniyadan keyin yana urinib ko‘ring.\n"
+                "💙 Noqulaylik uchun uzr!"
+                )
+            else:
+                await update.message.reply_text(
+                    f"❌ Gemini xatosi: {response.status_code}"
+                )
             return
 
         if "candidates" not in result:
@@ -742,9 +760,17 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
         result = response.json()
 
         if response.status_code != 200:
-            await update.message.reply_text(
-                f"❌ Gemini xatosi: {response.status_code}"
-            )
+            if response.status_code == 503:
+                await update.message.reply_text(
+                "😔 Student AI hozir biroz band.\n"
+                "⏳ So‘rovlar ko‘paygani sababli javob tayyorlash biroz kechikmoqda.\n"
+                "🔄 Iltimos, bir necha soniyadan keyin yana urinib ko‘ring.\n"
+                "💙 Noqulaylik uchun uzr!"
+                )
+            else:
+                await update.message.reply_text(
+                    f"❌ Gemini xatosi: {response.status_code}"
+                )
             return
 
         if "candidates" not in result:
