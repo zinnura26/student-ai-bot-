@@ -2444,6 +2444,8 @@ async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "♾️ AI savollariga limit yo'q\n"
             "📄 Hujjatlar bilan ishlash\n"
             "💻 Dasturlash yordamchisi\n"
+            "🧠 Aqlli matematika — oson yechimlar\n"
+            "📚 Yozma ishlar — sifatli ishlar\n"
             "🌍 Tarjimon imkoniyatlari\n\n"
             "💳 Premiumni sotib olish uchun quyidagi tugmani bosing."
         )
@@ -2455,6 +2457,8 @@ async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "♾️ Unlimited AI questions\n"
             "📄 Document tools\n"
             "💻 Programming assistant\n"
+            "🧠 Smart Math — easy solutions\n"
+            "📚 Written Works — quality work\n"
             "🌍 Translation features\n\n"
             "💳 Press the button below to purchase Premium."
         )
@@ -2466,6 +2470,8 @@ async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "♾️ Безлимитные вопросы AI\n"
             "📄 Работа с документами\n"
             "💻 Помощник по программированию\n"
+            "🧠 Умная математика — простые решения\n"
+            "📚 Письменные работы — качественные работы\n"
             "🌍 Переводчик\n\n"
             "💳 Нажмите кнопку ниже для покупки Premium."
         )
