@@ -3281,6 +3281,11 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_premium(update, context)
         return
 
+    # ⭐ Premium
+    if text == "⭐ Premium":
+        await premium(update, context)
+        return
+
     # ℹ️ Student AI haqida
     if text in [
         "ℹ️ Student AI haqida",
