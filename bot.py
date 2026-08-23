@@ -3819,6 +3819,22 @@ app.add_handler(
     )
 )
 
+async def test_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    premium_until = activate_premium(ADMIN_ID)
+
+    await update.message.reply_text(
+        f"✅ TEST PREMIUM FAOLLASHTIRILDI!\n\n"
+        f"⭐ Premium: Faol\n"
+        f"📅 Amal qilish muddati: {premium_until}"
+    )
+
+app.add_handler(
+    CommandHandler("testpremium", test_premium)
+)
+
 print("✅ Student AI ishga tushdi...")
 
 async def error_handler(update, context):
