@@ -20,6 +20,8 @@ import requests
 from pypdf import PdfReader
 load_dotenv()
 
+DB_PATH = "/app/data/student_ai.db" if os.path.isdir("/app/data") else "student_ai.db"
+
 
 TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 8004029780
@@ -31,7 +33,7 @@ GEMINI_AI_API_KEY = os.getenv("GEMINI_AI_API_KEY")
 
 def init_db():
     print("🔵 REPORT: DB ulanish boshladi")
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     print("🟢 REPORT: DB ulanish OK")
 
@@ -163,7 +165,7 @@ def init_db():
 init_db()
 
 def get_user(user_id):
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -186,7 +188,7 @@ def get_user(user_id):
 
 
 def update_question_count(user_id, count, date):
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -202,7 +204,7 @@ def activate_premium(user_id):
 
     premium_until = date.today() + timedelta(days=30)
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -338,7 +340,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
     from datetime import date
     today = date.today().isoformat()
 
-    conn = sqlite3.connect('student_ai.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
         'SELECT essay_count, essay_last_date, premium_until FROM users WHERE user_id = ?',
@@ -421,7 +423,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
 
         answer = result['candidates'][0]['content']['parts'][0]['text']
 
-        conn = sqlite3.connect('student_ai.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute(
             'UPDATE users SET essay_count = ?, essay_last_date = ? WHERE user_id = ?',
@@ -445,7 +447,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     from datetime import date
     today = date.today().isoformat()
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -594,7 +596,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 
         answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
-        conn = sqlite3.connect("student_ai.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -635,7 +637,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
     from datetime import date
     today = date.today().isoformat()
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -784,7 +786,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
 
         answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
-        conn = sqlite3.connect("student_ai.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -872,7 +874,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     today = str(date.today())
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1102,7 +1104,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not premium_active:
             programming_count += 1
 
-            conn = sqlite3.connect("student_ai.db")
+            conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
 
             cursor.execute(
@@ -1476,7 +1478,7 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     today = __import__("datetime").date.today().isoformat()
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -1899,7 +1901,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # PREMIUM = 5 / kun
     # ============================================================
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -2112,7 +2114,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 💾 FAQAT MUVAFFAQIYATLI JAVOBDAN KEYIN LIMITNI OSHIRISH
     # ============================================================
 
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -2705,7 +2707,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = str(date.today())
 
     # Foydalanuvchi ma'lumotlarini olish
-    conn = sqlite3.connect("student_ai.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -2817,7 +2819,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not premium_active:
                 translator_count += 1
 
-                conn = sqlite3.connect("student_ai.db")
+                conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
 
                 cursor.execute(
