@@ -23,6 +23,7 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 8004029780
+PAYMENT_CARD = os.getenv("PAYMENT_CARD", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_WRITING_API_KEY = os.getenv("GEMINI_WRITING_API_KEY")
 GEMINI_PROGRAMMING_API_KEY = os.getenv("GEMINI_PROGRAMMING_API_KEY")
@@ -3390,7 +3391,8 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "💳 PREMIUM TO'LOV\\n\\n"
             "⭐ Narx: 29 000 so'm / 30 kun\\n\\n"
-            "1️⃣ To'lovni ko'rsatilgan karta orqali qiling.\\n"
+            f"💳 To'lov kartasi: {PAYMENT_CARD or 'Karta hali sozlanmagan'}\\n\\n"
+            "1️⃣ Yuqoridagi karta raqamiga to'lov qiling.\\n"
             "2️⃣ To'lov chekini shu botga RASM qilib yuboring.\\n"
             "3️⃣ Administrator chekni tekshiradi.\\n"
             "4️⃣ Tasdiqlangach Premium 30 kunga ochiladi.\\n\\n"
