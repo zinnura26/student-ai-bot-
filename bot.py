@@ -7,6 +7,7 @@ from telegram import (
 from telegram.ext import (
     Application,
     CommandHandler,
+    CallbackQueryHandler,
     MessageHandler,
     ContextTypes,
     filters,
@@ -21,6 +22,7 @@ load_dotenv()
 
 
 TOKEN = os.getenv("TOKEN")
+ADMIN_ID = 8004029780
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_WRITING_API_KEY = os.getenv("GEMINI_WRITING_API_KEY")
 GEMINI_PROGRAMMING_API_KEY = os.getenv("GEMINI_PROGRAMMING_API_KEY")
@@ -3249,6 +3251,96 @@ async def settings_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg)
 
 
+
+async def payment_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("payment_waiting_receipt"):
+        await pdf_photo_handler(update, context)
+        return
+
+    user = update.effective_user
+    user_id = user.id
+    name = user.full_name or "Noma'lum"
+    username = "@" + user.username if user.username else "username yo'q"
+
+    context.user_data["payment_waiting_receipt"] = False
+
+    caption = (
+        "💳 YANGI PREMIUM TO'LOVI\\n\\n"
+        f"👤 Ism: {name}\\n"
+        f"🔗 Username: {username}\\n"
+        f"🆔 User ID: {user_id}\\n\\n"
+        "👇 Chekni tekshiring:"
+    )
+
+    keyboard = [[
+        InlineKeyboardButton(
+            "✅ Tasdiqlash",
+            callback_data=f"premium_ok:{user_id}"
+        ),
+        InlineKeyboardButton(
+            "❌ Rad etish",
+            callback_data=f"premium_no:{user_id}"
+        )
+    ]]
+
+    await context.bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=update.message.photo[-1].file_id,
+        caption=caption,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    await update.message.reply_text(
+        "✅ Chekingiz adminga yuborildi.\\n\\n"
+        "⏳ To'lov tekshirilgach Premium faollashtiriladi."
+    )
+
+
+async def premium_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ Ruxsat yo'q.", show_alert=True)
+        return
+
+    await query.answer()
+
+    if query.data.startswith("premium_ok:"):
+        user_id = int(query.data.split(":", 1)[1])
+        premium_until = activate_premium(user_id)
+
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=(
+                "🎉 TO'LOV TASDIQLANDI!\\n\\n"
+                "⭐ Premium 30 kunga faollashtirildi.\\n"
+                f"📅 Amal qilish muddati: {premium_until}"
+            )
+        )
+
+        await query.edit_message_caption(
+            caption=query.message.caption + "\\n\\n✅ TASDIQLANDI",
+            reply_markup=None
+        )
+        return
+
+    if query.data.startswith("premium_no:"):
+        user_id = int(query.data.split(":", 1)[1])
+
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=(
+                "❌ To'lov tasdiqlanmadi.\\n\\n"
+                "Iltimos, chekni qayta tekshirib yuboring."
+            )
+        )
+
+        await query.edit_message_caption(
+            caption=query.message.caption + "\\n\\n❌ RAD ETILDI",
+            reply_markup=None
+        )
+
+
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
@@ -3290,6 +3382,20 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ⭐ Premium
     if text == "⭐ Premium":
         await premium(update, context)
+        return
+
+    if text == "💳 Premium sotib olish":
+        context.user_data["payment_waiting_receipt"] = True
+
+        await update.message.reply_text(
+            "💳 PREMIUM TO'LOV\\n\\n"
+            "⭐ Narx: 29 000 so'm / 30 kun\\n\\n"
+            "1️⃣ To'lovni ko'rsatilgan karta orqali qiling.\\n"
+            "2️⃣ To'lov chekini shu botga RASM qilib yuboring.\\n"
+            "3️⃣ Administrator chekni tekshiradi.\\n"
+            "4️⃣ Tasdiqlangach Premium 30 kunga ochiladi.\\n\\n"
+            "📸 Endi chek rasmini yuboring."
+        )
         return
 
     # ℹ️ Student AI haqida
@@ -3682,9 +3788,16 @@ app.add_handler(
 )
 
 app.add_handler(
+    CallbackQueryHandler(
+        premium_payment_callback,
+        pattern=r"^premium_(ok|no):"
+    )
+)
+
+app.add_handler(
     MessageHandler(
         filters.PHOTO,
-        pdf_photo_handler
+        payment_photo_handler
     )
 )
 
