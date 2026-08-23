@@ -3381,7 +3381,7 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 🧪 VAQTINCHALIK PREMIUM TEST
-    if text == "🧪 Premium test":
+    if text in ["🧪 Premium test", "Premium test"]:
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("❌ Ruxsat yo'q.")
             return
