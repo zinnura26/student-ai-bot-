@@ -3380,6 +3380,20 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_premium(update, context)
         return
 
+    # 🧪 VAQTINCHALIK PREMIUM TEST
+    if text == "🧪 Premium test":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("❌ Ruxsat yo'q.")
+            return
+
+        context.user_data["payment_waiting_receipt"] = True
+        await update.message.reply_text(
+            "🧪 TEST REJIMI\\n\\n"
+            "Haqiqiy pul kerak emas.\\n"
+            "Istalgan oddiy rasmni yuboring — u test chek sifatida adminga yuboriladi."
+        )
+        return
+
     # ⭐ Premium
     if text == "⭐ Premium":
         await premium(update, context)
