@@ -2479,6 +2479,8 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if premium_active:
 
+        premium_count += 1
+
         cursor.execute(
             """
             UPDATE users
@@ -2487,7 +2489,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             WHERE user_id = ?
             """,
             (
-                premium_count + 1,
+                premium_count,
                 current_month,
                 user_id
             )
@@ -2518,6 +2520,12 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================================
 
     full_message = title + "\n\n" + answer
+
+    if premium_active:
+        full_message += (
+            f"\n\n⭐ Premium PDF xulosalar: "
+            f"{premium_count}/30"
+        )
 
     MAX_LENGTH = 3500
 
