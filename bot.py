@@ -158,11 +158,108 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # ⭐ PREMIUM — 300 TA / 30 KUN
+    # Har bir Premium cheksiz xizmat uchun alohida oylik hisoblagich
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_math_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_math_month TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_programming_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_programming_month TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_translation_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_translation_month TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_ai_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN premium_ai_month TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
 
 init_db()
+
+# ============================================================
+# ⭐ PREMIUM 300 TA / 30 KUN
+# Premium davrini premium_until orqali aniqlaymiz.
+# Shu sababli kalendar oyiga bog‘lanmaydi.
+# ============================================================
+
+PREMIUM_FEATURE_LIMIT = 300
+
+
+def premium_cycle_active(
+    premium_count,
+    premium_cycle,
+    premium_until,
+    today
+):
+    """
+    Premium 30 kunlik davri uchun hisoblagichni tekshiradi.
+
+    premium_cycle = o‘sha Premium davrining premium_until sanasi.
+    Premium yangilanganda premium_until o‘zgaradi va
+    hisoblagich avtomatik ravishda 0 dan boshlanadi.
+    """
+
+    premium_active = (
+        premium_until is not None
+        and premium_until != ""
+        and premium_until >= today
+    )
+
+    if not premium_active:
+        return False, 0
+
+    if premium_cycle != premium_until:
+        return True, 0
+
+    return True, (premium_count or 0)
+
 
 def get_user(user_id):
     conn = sqlite3.connect(DB_PATH)
@@ -924,34 +1021,114 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn.close()
 
-    # ⭐ Premium tekshirish
+    # ============================================================
+    # ⭐ PREMIUM — 300 TA / 30 KUN
+    # 🆓 FREE — 5 TA / KUN
+    # ============================================================
+
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # 🆓 Bepul limit
-    if not premium_active and programming_count >= 5:
-        if lang == "uz":
-            limit_text = (
-                "⛔ Bugungi bepul dasturlash limitingiz tugadi.\n\n"
-                "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
-            )
-        elif lang == "en":
-            limit_text = (
-                "⛔ Your free programming limit for today is over.\n\n"
-                "⭐ Upgrade to Premium for more access."
-            )
+    if premium_active:
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT premium_programming_count,
+                   premium_programming_month
+            FROM users
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+
+        row = cursor.fetchone()
+
+        if row:
+            premium_programming_count = row[0] or 0
+            premium_programming_cycle = row[1]
         else:
-            limit_text = (
-                "⛔ Ваш бесплатный лимит программирования на сегодня закончился.\n\n"
-                "⭐ Premium даст больше возможностей."
+            premium_programming_count = 0
+            premium_programming_cycle = None
+
+        current_premium_cycle = premium_until
+
+        if premium_programming_cycle != current_premium_cycle:
+
+            premium_programming_count = 0
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET premium_programming_count = 0,
+                    premium_programming_month = ?
+                WHERE user_id = ?
+                """,
+                (current_premium_cycle, user_id)
             )
 
-        await update.message.reply_text(limit_text)
-        context.user_data["programming_mode"] = False
-        return
+            conn.commit()
+
+        conn.close()
+
+        if premium_programming_count >= 300:
+
+            if lang == "uz":
+                limit_text = (
+                    "⭐ Premium dasturlash limitingiz tugadi.\n\n"
+                    "📊 Premium davrida: 300/300 ta so‘rov ishlatildi.\n"
+                    "📅 Limit yangi Premium davri boshlanganda yangilanadi."
+                )
+            elif lang == "en":
+                limit_text = (
+                    "⭐ Your Premium programming limit has been reached.\n\n"
+                    "📊 Premium period: 300/300 requests used.\n"
+                    "📅 The limit resets with a new Premium period."
+                )
+            else:
+                limit_text = (
+                    "⭐ Ваш лимит Premium программирования закончился.\n\n"
+                    "📊 За Premium-период: 300/300 запросов использовано.\n"
+                    "📅 Лимит обновится с новым Premium-периодом."
+                )
+
+            await update.message.reply_text(limit_text)
+            context.user_data["programming_mode"] = False
+            return
+
+    else:
+
+        # 🆓 FREE — 5 TA / KUN
+        if programming_count >= 5:
+
+            if lang == "uz":
+                limit_text = (
+                    "⛔ Bugungi bepul dasturlash limitingiz tugadi.\n\n"
+                    "⭐ Premium orqali 30 kun davomida 300 ta "
+                    "dasturlash so‘rovidan foydalanishingiz mumkin."
+                )
+            elif lang == "en":
+                limit_text = (
+                    "⛔ Your free programming limit for today is over.\n\n"
+                    "⭐ Premium gives you 300 programming requests "
+                    "during the Premium period."
+                )
+            else:
+                limit_text = (
+                    "⛔ Ваш бесплатный лимит программирования "
+                    "на сегодня закончился.\n\n"
+                    "⭐ Premium даёт 300 запросов программирования "
+                    "за Premium-период."
+                )
+
+            await update.message.reply_text(limit_text)
+            context.user_data["programming_mode"] = False
+            return
 
     user_question = text
 
@@ -1100,8 +1277,12 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ["content"]["parts"][0]["text"]
         )
 
-        # 🆓 Faqat muvaffaqiyatli javobdan keyin limit oshadi
+        # ========================================================
+        # 💾 FAQAT MUVAFFAQIYATLI JAVOBDAN KEYIN HISOBLASH
+        # ========================================================
+
         if not premium_active:
+
             programming_count += 1
 
             conn = sqlite3.connect(DB_PATH)
@@ -1121,12 +1302,34 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.close()
 
             limit_text = (
-                f"\n\n📊 Bugungi bepul dasturlash savollari: "
+                f"\\n\\n📊 Bugungi bepul dasturlash savollari: "
                 f"{programming_count}/5"
             )
+
         else:
+
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET premium_programming_count =
+                        premium_programming_count + 1,
+                    premium_programming_month = ?
+                WHERE user_id = ?
+                """,
+                (premium_until, user_id)
+            )
+
+            conn.commit()
+            conn.close()
+
+            premium_programming_count += 1
+
             limit_text = (
-                "\n\n⭐ Premium — dasturlash limiti yo'q"
+                f"\\n\\n⭐ Premium dasturlash: "
+                f"{premium_programming_count}/300"
             )
 
         await update.message.reply_text(
@@ -1177,28 +1380,105 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         and premium_until >= today
     )
 
-    # 🆓 Bepul limit
-    if not premium_active:
+    # ============================================================
+    # ⭐ PREMIUM — 300 TA / 30 KUN
+    # 🆓 FREE — 5 TA / KUN
+    # ============================================================
 
+    if premium_active:
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT premium_math_count,
+                   premium_math_month
+            FROM users
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+
+        row = cursor.fetchone()
+
+        if row:
+            premium_math_count = row[0] or 0
+            premium_math_cycle = row[1]
+        else:
+            premium_math_count = 0
+            premium_math_cycle = None
+
+        current_premium_cycle = premium_until
+
+        if premium_math_cycle != current_premium_cycle:
+            premium_math_count = 0
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET premium_math_count = 0,
+                    premium_math_month = ?
+                WHERE user_id = ?
+                """,
+                (current_premium_cycle, user_id)
+            )
+
+            conn.commit()
+
+        conn.close()
+
+        if premium_math_count >= 300:
+
+            if lang == "uz":
+                limit_text = (
+                    "⭐ Premium Aqlli matematika limitingiz tugadi.\n\n"
+                    "📊 Premium davrida: 300/300 ta savol ishlatildi.\n"
+                    "📅 Limit yangi Premium davri boshlanganda yangilanadi."
+                )
+            elif lang == "en":
+                limit_text = (
+                    "⭐ Your Premium Smart Math limit has been reached.\n\n"
+                    "📊 Premium period: 300/300 questions used.\n"
+                    "📅 The limit resets with a new Premium period."
+                )
+            else:
+                limit_text = (
+                    "⭐ Ваш лимит Premium для Умной математики закончился.\n\n"
+                    "📊 За Premium-период: 300/300 вопросов использовано.\n"
+                    "📅 Лимит обновится с новым Premium-периодом."
+                )
+
+            await update.message.reply_text(limit_text)
+            return
+
+    else:
+
+        # 🆓 FREE — 5 TA / KUN
         if last_date != today:
             question_count = 0
             update_question_count(user_id, 0, today)
 
         if question_count >= 5:
+
             if lang == "uz":
                 limit_text = (
                     "⛔ Bugungi Aqlli matematika limitingiz tugadi.\n\n"
-                    "⭐ Premium orqali matematikadan cheksiz foydalanishingiz mumkin."
+                    "⭐ Premium orqali 30 kun davomida 300 ta "
+                    "matematik savoldan foydalanishingiz mumkin."
                 )
             elif lang == "en":
                 limit_text = (
                     "⛔ Your free Smart Math limit for today is over.\n\n"
-                    "⭐ Premium gives you unlimited mathematics."
+                    "⭐ Premium gives you 300 math questions "
+                    "during the Premium period."
                 )
             else:
                 limit_text = (
-                    "⛔ Ваш бесплатный лимит Умной математики на сегодня закончился.\n\n"
-                    "⭐ Premium даёт неограниченный доступ к математике."
+                    "⛔ Ваш бесплатный лимит Умной математики "
+                    "на сегодня закончился.\n\n"
+                    "⭐ Premium даёт 300 математических вопросов "
+                    "за Premium-период."
                 )
 
             await update.message.reply_text(limit_text)
@@ -1358,7 +1638,9 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # 🆓 Faqat muvaffaqiyatli javobdan keyin limitni oshiramiz
             if not premium_active:
+
                 question_count += 1
+
                 update_question_count(
                     user_id,
                     question_count,
@@ -1369,10 +1651,30 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"\n\n📊 Bugungi bepul matematik savollar: "
                     f"{question_count}/5"
                 )
+
             else:
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET premium_math_count = premium_math_count + 1,
+                        premium_math_month = ?
+                    WHERE user_id = ?
+                    """,
+                    (premium_until, user_id)
+                )
+
+                conn.commit()
+                conn.close()
+
+                premium_math_count += 1
+
                 limit_text = (
-                    "\n\n⭐ Premium — Aqlli matematikadan "
-                    "foydalanish cheksiz"
+                    f"\n\n⭐ Premium Aqlli matematika: "
+                    f"{premium_math_count}/300"
                 )
 
             await update.message.reply_text(
@@ -1460,7 +1762,7 @@ async def start_image_to_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "🖼️ RASMLARNI PDF QILISH\n\n"
         "Rasmlaringizni ketma-ket yuboring.\n\n"
         "🆓 Bepul foydalanuvchi: kuniga 5 ta rasm.\n"
-        "⭐ Premium foydalanuvchi: bir PDF uchun 30 ta rasm.\n\n"
+        "⭐ Premium foydalanuvchi: bir PDF uchun 50 ta rasm.\n\n"
         "Rasmlarni yuborib bo‘lgach,\n"
         "«✅ PDF tayyorlash» tugmasini bosing.",
         reply_markup=ReplyKeyboardMarkup(
@@ -1557,13 +1859,13 @@ async def pdf_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         []
     )
 
-    # Bitta PDF uchun maksimal 30 ta rasm
-    if len(images) >= 30:
+    # Bitta PDF uchun maksimal 50 ta rasm
+    if len(images) >= 50:
 
         conn.close()
 
         await update.message.reply_text(
-            "⛔ Bitta PDF uchun maksimal 30 ta rasm."
+            "⛔ Bitta PDF uchun maksimal 50 ta rasm."
         )
 
         return
@@ -1898,7 +2200,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================================
     # 💎 PDF XULOSA LIMITI
     # FREE = 3 / kun
-    # PREMIUM = 5 / kun
+    # PREMIUM = 30 / oy
     # ============================================================
 
     conn = sqlite3.connect(DB_PATH)
@@ -1908,6 +2210,8 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         SELECT pdf_summary_count,
                pdf_summary_last_date,
+               pdf_summary_premium_count,
+               pdf_summary_premium_month,
                premium_until
         FROM users
         WHERE user_id = ?
@@ -1921,22 +2225,38 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute(
             """
             INSERT INTO users
-            (user_id, pdf_summary_count, pdf_summary_last_date)
-            VALUES (?, 0, ?)
+            (
+                user_id,
+                pdf_summary_count,
+                pdf_summary_last_date,
+                pdf_summary_premium_count,
+                pdf_summary_premium_month
+            )
+            VALUES (?, 0, ?, 0, ?)
             """,
-            (user_id, today)
+            (
+                user_id,
+                today,
+                0,
+                today[:7]
+            )
         )
         conn.commit()
 
         pdf_summary_count = 0
         last_date = today
+        premium_count = 0
+        premium_month = today[:7]
         premium_until = None
 
     else:
         pdf_summary_count = row[0] or 0
         last_date = row[1]
-        premium_until = row[2]
+        premium_count = row[2] or 0
+        premium_month = row[3]
+        premium_until = row[4]
 
+    # 🆓 Free kunlik hisobni yangilash
     if last_date != today:
         pdf_summary_count = 0
 
@@ -1949,57 +2269,82 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
             (today, user_id)
         )
+
         conn.commit()
 
+    # ⭐ Premium holatini tekshirish
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    daily_limit = 5 if premium_active else 3
+    # ⭐ Premium oyini tekshirish
+    current_month = today[:7]
 
-    if pdf_summary_count >= daily_limit:
+    if premium_month != current_month:
+        premium_count = 0
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET pdf_summary_premium_count = 0,
+                pdf_summary_premium_month = ?
+            WHERE user_id = ?
+            """,
+            (current_month, user_id)
+        )
+
+        conn.commit()
+
+    # 🆓 FREE — 3 ta / kun
+    if not premium_active and pdf_summary_count >= 3:
         conn.close()
 
         if lang == "ru":
-            if premium_active:
-                msg = (
-                    "⚠️ Ваш дневной лимит PDF-резюме закончился.\n\n"
-                    "⭐ Сегодня вы использовали 5 из 5 PDF."
-                )
-            else:
-                msg = (
-                    "🔒 Бесплатный дневной лимит PDF-резюме закончился.\n\n"
-                    "Сегодня доступно: 3 PDF.\n"
-                    "⭐ Premium даёт до 5 PDF-резюме в день."
-                )
-
+            msg = (
+                "🔒 Ваш дневной лимит PDF-резюме закончился.\n\n"
+                "Сегодня доступно: 3 PDF.\n"
+                "⭐ Premium позволяет использовать больше."
+            )
         elif lang == "en":
-            if premium_active:
-                msg = (
-                    "⚠️ Your daily PDF summary limit has been reached.\n\n"
-                    "⭐ You have used 5 of 5 PDF summaries today."
-                )
-            else:
-                msg = (
-                    "🔒 Your free daily PDF summary limit has been reached.\n\n"
-                    "You can use 3 PDF summaries per day.\n"
-                    "⭐ Premium allows up to 5 PDF summaries per day."
-                )
-
+            msg = (
+                "🔒 Your daily PDF summary limit has been reached.\n\n"
+                "You can use 3 PDF summaries per day.\n"
+                "⭐ Premium allows more usage."
+            )
         else:
-            if premium_active:
-                msg = (
-                    "⚠️ Bugungi PDF xulosa limitingiz tugadi.\n\n"
-                    "⭐ Bugun 5/5 ta PDF ishlatdingiz."
-                )
-            else:
-                msg = (
-                    "🔒 Bepul PDF xulosa limitingiz tugadi.\n\n"
-                    "Kuniga 3 ta PDF xulosa mavjud.\n"
-                    "⭐ Premium orqali kuniga 5 ta PDF xulosa olish mumkin."
-                )
+            msg = (
+                "🔒 Bepul PDF xulosa limitingiz tugadi.\n\n"
+                "Kuniga 3 ta PDF xulosa mavjud.\n"
+                "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
+            )
+
+        await update.message.reply_text(msg)
+        return
+
+    # ⭐ PREMIUM — 30 ta / oy
+    if premium_active and premium_count >= 30:
+        conn.close()
+
+        if lang == "ru":
+            msg = (
+                "⭐ Premium PDF xulosa limitingiz tugadi.\n\n"
+                "📊 Bu oy: 30/30 ta PDF xulosa ishlatildi.\n"
+                "📅 Limit keyingi oy yangilanadi."
+            )
+        elif lang == "en":
+            msg = (
+                "⭐ Your Premium PDF summary limit has been reached.\n\n"
+                "📊 This month: 30/30 PDF summaries used.\n"
+                "📅 The limit resets next month."
+            )
+        else:
+            msg = (
+                "⭐ Premium PDF xulosa limitingiz tugadi.\n\n"
+                "📊 Bu oy: 30/30 ta PDF xulosa ishlatildi.\n"
+                "📅 Limit keyingi oy yangilanadi."
+            )
 
         await update.message.reply_text(msg)
         return
@@ -2117,15 +2462,37 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE users
-        SET pdf_summary_count = ?,
-            pdf_summary_last_date = ?
-        WHERE user_id = ?
-        """,
-        (pdf_summary_count + 1, today, user_id)
-    )
+    if premium_active:
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET pdf_summary_premium_count = ?,
+                pdf_summary_premium_month = ?
+            WHERE user_id = ?
+            """,
+            (
+                premium_count + 1,
+                current_month,
+                user_id
+            )
+        )
+
+    else:
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET pdf_summary_count = ?,
+                pdf_summary_last_date = ?
+            WHERE user_id = ?
+            """,
+            (
+                pdf_summary_count + 1,
+                today,
+                user_id
+            )
+        )
 
     conn.commit()
     conn.close()
@@ -2753,6 +3120,74 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         and premium_until >= today
     )
 
+    # ⭐ PREMIUM TARJIMON — 300 / 30 KUN
+    premium_translation_count = 0
+    premium_translation_month = today[:7]
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT premium_translation_count,
+               premium_translation_month
+        FROM users
+        WHERE user_id = ?
+        """,
+        (user_id,)
+    )
+
+    premium_data = cursor.fetchone()
+
+    if premium_data:
+        premium_translation_count = premium_data[0] or 0
+        premium_translation_month = (
+            premium_data[1] or today[:7]
+        )
+
+    # Yangi oy bo'lsa hisoblagichni yangilash
+    if premium_translation_month != today[:7]:
+        premium_translation_count = 0
+        premium_translation_month = today[:7]
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET premium_translation_count = 0,
+                premium_translation_month = ?
+            WHERE user_id = ?
+            """,
+            (premium_translation_month, user_id)
+        )
+        conn.commit()
+
+    conn.close()
+
+    # ⭐ Premium 300 ta tarjimadan keyin to'xtaydi
+    if premium_active and premium_translation_count >= 300:
+
+        if lang == "uz":
+            msg = (
+                "⛔ Premium tarjima limitingiz tugadi.\n\n"
+                "📊 Bu Premium davrida: 300/300 ta tarjima.\n"
+                "📅 Limit Premium muddati yangilanganda qayta tiklanadi."
+            )
+        elif lang == "en":
+            msg = (
+                "⛔ Your Premium translation limit has been reached.\n\n"
+                "📊 This Premium period: 300/300 translations.\n"
+                "📅 The limit resets when Premium is renewed."
+            )
+        else:
+            msg = (
+                "⛔ Ваш Premium-лимит переводов закончился.\n\n"
+                "📊 За период Premium: 300/300 переводов.\n"
+                "📅 Лимит сбросится после продления Premium."
+            )
+
+        await update.message.reply_text(msg)
+        return
+
     # 🆓 Bepul limit
     if not premium_active and translator_count >= 5:
 
@@ -2836,8 +3271,33 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"{translator_count}/5"
                 )
             else:
+                # ⭐ Premium hisoblagich faqat muvaffaqiyatli
+                # tarjimadan keyin oshadi
+                premium_translation_count += 1
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET premium_translation_count = ?,
+                        premium_translation_month = ?
+                    WHERE user_id = ?
+                    """,
+                    (
+                        premium_translation_count,
+                        today[:7],
+                        user_id
+                    )
+                )
+
+                conn.commit()
+                conn.close()
+
                 limit_text = (
-                    "\n\n⭐ Premium — tarjima limiti yo‘q"
+                    f"\n\n⭐ Premium tarjimalar: "
+                    f"{premium_translation_count}/300"
                 )
 
             await update.message.reply_text(
@@ -2873,14 +3333,88 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     question_count, last_date, premium_until = get_user(user_id)
 
-    # ⭐ Premium holatini tekshirish
+    # ============================================================
+    # ⭐ PREMIUM HOLATI
+    # ============================================================
+
     premium_active = (
         premium_until is not None
         and premium_until != ""
         and premium_until >= today
     )
 
-    # 🆓 Bepul limit
+    # ============================================================
+    # ⭐ PREMIUM AI — 300 / 30 KUN HISOBLAGICHI
+    # ============================================================
+
+    current_month = today[:7]
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT premium_ai_count, premium_ai_month "
+        "FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+
+    premium_row = cursor.fetchone()
+
+    if premium_row is None:
+        premium_ai_count = 0
+        premium_ai_month = current_month
+    else:
+        premium_ai_count = premium_row[0] or 0
+        premium_ai_month = premium_row[1]
+
+    # Yangi oy
+    if premium_ai_month != current_month:
+        premium_ai_count = 0
+
+        cursor.execute(
+            "UPDATE users SET premium_ai_count = 0, "
+            "premium_ai_month = ? WHERE user_id = ?",
+            (current_month, user_id)
+        )
+
+        conn.commit()
+
+    conn.close()
+
+    # ============================================================
+    # ⭐ PREMIUM LIMIT — 300 / 30 KUN
+    # ============================================================
+
+    if premium_active and premium_ai_count >= 300:
+
+        if lang == "uz":
+            limit_text = (
+                "⭐ Premium AI limitingiz tugadi.\n\n"
+                "📊 Bu oy: 300/300 ta AI so‘rovi ishlatildi.\n"
+                "📅 Limit keyingi oy yangilanadi."
+            )
+
+        elif lang == "en":
+            limit_text = (
+                "⭐ Your Premium AI limit has been reached.\n\n"
+                "📊 This month: 300/300 AI requests used.\n"
+                "📅 The limit resets next month."
+            )
+
+        else:
+            limit_text = (
+                "⭐ Ваш Premium-лимит AI закончился.\n\n"
+                "📊 В этом месяце: 300/300 AI-запросов использовано.\n"
+                "📅 Лимит обновится в следующем месяце."
+            )
+
+        await update.message.reply_text(limit_text)
+        return
+
+    # ============================================================
+    # 🆓 FREE — 5 / KUN
+    # ============================================================
+
     if not premium_active:
 
         if last_date != today:
@@ -2892,13 +3426,15 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if lang == "uz":
                 limit_text = (
                     "⛔ Bugungi bepul AI limitingiz tugadi.\n\n"
-                    "⭐ Premium orqali ko'proq foydalanishingiz mumkin."
+                    "⭐ Premium orqali ko‘proq foydalanishingiz mumkin."
                 )
+
             elif lang == "en":
                 limit_text = (
                     "⛔ Your free AI limit for today is over.\n\n"
                     "⭐ You can use more with Premium."
                 )
+
             else:
                 limit_text = (
                     "⛔ Ваш бесплатный лимит AI на сегодня закончился.\n\n"
@@ -2908,7 +3444,10 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(limit_text)
             return
 
-    # 🌍 Tilga qarab AI prompt
+    # ============================================================
+    # 🌍 TILGA MOS PROMPT
+    # ============================================================
+
     if lang == "uz":
         prompt = (
             "Sen Student AI yordamchisisan. "
@@ -2939,6 +3478,10 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Вопрос пользователя:\n{text}"
         )
 
+    # ============================================================
+    # ⏳ KUTILMOQDA
+    # ============================================================
+
     if lang == "uz":
         wait_text = "⏳ AI o'ylayapti..."
     elif lang == "en":
@@ -2947,6 +3490,10 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wait_text = "⏳ AI думает..."
 
     await update.message.reply_text(wait_text)
+
+    # ============================================================
+    # 🤖 GEMINI
+    # ============================================================
 
     url = (
         "https://generativelanguage.googleapis.com/"
@@ -2988,11 +3535,42 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("🤖 AI GEMINI:", result)
 
         if "candidates" in result:
+
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
 
-            # 🆓 Faqat muvaffaqiyatli javobdan keyin limitni oshiramiz
-            if not premium_active:
+            # ====================================================
+            # 💾 FAQAT MUVAFFAQIYATLI JAVOBDAN KEYIN HISOBLASH
+            # ====================================================
+
+            if premium_active:
+
+                premium_ai_count += 1
+
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "UPDATE users SET premium_ai_count = ?, "
+                    "premium_ai_month = ? WHERE user_id = ?",
+                    (
+                        premium_ai_count,
+                        current_month,
+                        user_id
+                    )
+                )
+
+                conn.commit()
+                conn.close()
+
+                limit_text = (
+                    f"\n\n⭐ Premium AI: "
+                    f"{premium_ai_count}/300"
+                )
+
+            else:
+
                 question_count += 1
+
                 update_question_count(
                     user_id,
                     question_count,
@@ -3003,21 +3581,19 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"\n\n📊 Bugungi bepul AI savollari: "
                     f"{question_count}/5"
                 )
-            else:
-                limit_text = (
-                    "\n\n⭐ Premium — AI savollariga limit yo'q"
-                )
 
             await update.message.reply_text(
                 f"{answer}{limit_text}"
             )
 
         else:
+
             await update.message.reply_text(
                 f"❌ Gemini xatosi ({response.status_code}):\n{result}"
             )
 
     except Exception as e:
+
         print("❌ AI ERROR:", e)
 
         await update.message.reply_text(
