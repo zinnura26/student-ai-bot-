@@ -158,6 +158,21 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 📝 PDF XULOSA PREMIUM — 30 / oy
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_summary_premium_count INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN pdf_summary_premium_month TEXT"
+        )
+    except sqlite3.OperationalError:
+        pass
+
     # ⭐ PREMIUM — 300 TA / 30 KUN
     # Har bir Premium cheksiz xizmat uchun alohida oylik hisoblagich
 
