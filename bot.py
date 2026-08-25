@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 import os
 import sqlite3
 import requests
+import asyncio
 from pypdf import PdfReader
 load_dotenv()
 
