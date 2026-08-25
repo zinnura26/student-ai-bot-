@@ -5,3 +5,9 @@ __pycache__/
 *.backup
 *.before_message_split
 uploaded_*.pdf
+
+# Local backup files
+bot.py.backup*
+bot.py.before_*
+bot.py.failed_patch
+railway_db_check.db

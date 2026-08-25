@@ -512,8 +512,75 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
     data = {'contents': [{'parts': [{'text': prompt}]}]}
 
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=60)
-        result = response.json()
+        response = None
+        result = None
+
+        retry_delays = [0, 2, 5]
+
+        for attempt, delay in enumerate(retry_delays, start=1):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
+
+                print(
+                    f"📝 ESSAY GEMINI attempt {attempt}/3: "
+                    f"{response.status_code}"
+                )
+
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                    except ValueError:
+                        result = None
+                    break
+
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < 3:
+                        await asyncio.sleep(delay)
+                        continue
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(
+                    f"⏱️ ESSAY TIMEOUT attempt {attempt}/3"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+
+                await update.message.reply_text(
+                    "⏳ AI serveri hozir javob berishga ulgurmayapti.\n\n"
+                    "Birozdan keyin yana urinib ko‘ring."
+                )
+                return
+
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"🌐 ESSAY NETWORK ERROR attempt {attempt}/3: {e}"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+
+                await update.message.reply_text(
+                    "🌐 AI serveriga ulanishda muammo yuz berdi.\n\n"
+                    "Birozdan keyin yana urinib ko‘ring."
+                )
+                return
+
+        if response is None or result is None:
+            await update.message.reply_text(
+                "😔 AI hozircha javob bera olmadi.\n\n"
+                "Birozdan keyin yana urinib ko‘ring."
+            )
+            return
 
         if response.status_code != 200:
             if response.status_code == 503:
@@ -677,14 +744,67 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     }
 
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
+        response = None
+        result = None
 
-        result = response.json()
+        retry_delays = [0, 2, 5]
+
+        for attempt, delay in enumerate(retry_delays, start=1):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
+
+                print(
+                    f"🧠 SMART MATH attempt {attempt}/3: "
+                    f"{response.status_code}"
+                )
+
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                    except ValueError:
+                        result = None
+                    break
+
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < 3:
+                        await asyncio.sleep(delay)
+                        continue
+                    break
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(
+                    f"⏱️ SMART MATH TIMEOUT attempt {attempt}/3"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+                break
+
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"🌐 SMART MATH NETWORK ERROR "
+                    f"attempt {attempt}/3: {e}"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+                break
+
+        if response is None or result is None:
+            await update.message.reply_text(
+                "⚠️ Aqlli matematika hozircha javob bera olmayapti.\n\n"
+                "🔄 Iltimos, birozdan keyin yana urinib ko‘ring."
+            )
+            return
 
         if response.status_code != 200:
             if response.status_code == 503:
@@ -867,14 +987,67 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
     }
 
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
+        response = None
+        result = None
 
-        result = response.json()
+        retry_delays = [0, 2, 5]
+
+        for attempt, delay in enumerate(retry_delays, start=1):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
+
+                print(
+                    f"🌐 TRANSLATOR GEMINI attempt "
+                    f"{attempt}/3: {response.status_code}"
+                )
+
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                    except ValueError:
+                        result = None
+                    break
+
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < 3:
+                        await asyncio.sleep(delay)
+                        continue
+                    break
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(
+                    f"⏱️ TRANSLATOR TIMEOUT attempt {attempt}/3"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+                break
+
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"🌐 TRANSLATOR NETWORK ERROR "
+                    f"attempt {attempt}/3: {e}"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+                break
+
+        if response is None or result is None:
+            await update.message.reply_text(
+                "🌐 Tarjimon hozircha javob bera olmayapti.\n\n"
+                "🔄 Iltimos, birozdan keyin yana urinib ko‘ring."
+            )
+            return
 
         if response.status_code != 200:
             if response.status_code == 503:
@@ -2130,12 +2303,62 @@ def gemini_pdf_request(pdf_path, prompt):
         print("⏳ Gemini'ga PDF faylning o‘zi yuborilmoqda...")
         print("📄 PDF hajmi:", os.path.getsize(pdf_path), "bayt")
 
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=180
-        )
+        import time
+
+        response = None
+
+        retry_delays = [0, 5, 10]
+
+        for attempt, delay in enumerate(retry_delays, start=1):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=180
+                )
+
+                print(
+                    f"🔍 GEMINI PDF attempt {attempt}/3: "
+                    f"{response.status_code}"
+                )
+
+                if response.status_code == 200:
+                    break
+
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < 3:
+                        time.sleep(delay)
+                        continue
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(
+                    f"⏱️ GEMINI PDF TIMEOUT attempt {attempt}/3"
+                )
+
+                if attempt < 3:
+                    time.sleep(delay)
+                    continue
+
+                return None
+
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"🌐 GEMINI PDF NETWORK ERROR "
+                    f"attempt {attempt}/3: {e}"
+                )
+
+                if attempt < 3:
+                    time.sleep(delay)
+                    continue
+
+                return None
+
+        if response is None:
+            print("❌ GEMINI PDF: response olinmadi")
+            return None
 
         print("🔍 GEMINI PDF STATUS:", response.status_code)
 
@@ -3546,12 +3769,67 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=60
-        )
+        response = None
+
+        for attempt, delay in enumerate([0, 2, 5], start=1):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
+
+                print(
+                    f"🤖 AI GEMINI attempt {attempt}/3: "
+                    f"{response.status_code}"
+                )
+
+                if response.status_code == 200:
+                    break
+
+                if response.status_code in [429, 500, 502, 503, 504]:
+                    if attempt < 3:
+                        await asyncio.sleep(delay)
+                        continue
+
+                break
+
+            except requests.exceptions.Timeout:
+                print(f"⏱️ AI GEMINI TIMEOUT attempt {attempt}/3")
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+
+                await update.message.reply_text(
+                    "⏳ AI serveridan javob kelmadi.\n\n"
+                    "Birozdan keyin yana urinib ko'ring."
+                )
+                return
+
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"🌐 AI GEMINI NETWORK ERROR "
+                    f"attempt {attempt}/3: {e}"
+                )
+
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+                    continue
+
+                await update.message.reply_text(
+                    "🌐 AI serveriga ulanishda muammo yuz berdi.\n\n"
+                    "Birozdan keyin yana urinib ko'ring."
+                )
+                return
+
+        if response is None:
+            await update.message.reply_text(
+                "😔 AI hozircha javob bera olmadi.\n\n"
+                "Birozdan keyin yana urinib ko'ring."
+            )
+            return
 
         result = response.json()
 
