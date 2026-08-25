@@ -3899,7 +3899,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "premium_ai_month = ? WHERE user_id = ?",
                     (
                         premium_ai_count,
-                        current_month,
+                        premium_until,
                         user_id
                     )
                 )
