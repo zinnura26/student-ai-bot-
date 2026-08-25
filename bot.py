@@ -320,8 +320,10 @@ def activate_premium(user_id):
     cursor = conn.cursor()
 
     cursor.execute(
-        "UPDATE users SET premium_until = ? WHERE user_id = ?",
-        (str(premium_until), user_id)
+        "UPDATE users SET premium_until = ?, "
+        "premium_ai_count = 0, premium_ai_month = ? "
+        "WHERE user_id = ?",
+        (str(premium_until), str(premium_until), user_id)
     )
 
     conn.commit()
@@ -2176,6 +2178,47 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
         # Telegramga yuborish
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT pdf_image_count,
+                   pdf_image_last_date,
+                   premium_until
+            FROM users
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+
+        limit_row = cursor.fetchone()
+        conn.close()
+
+        today = __import__("datetime").date.today().isoformat()
+
+        premium_active = (
+            limit_row is not None
+            and limit_row[2] is not None
+            and limit_row[2] != ""
+            and limit_row[2] >= today
+        )
+
+        if premium_active:
+            limit_display = (
+                f"⭐ Premium PDF: {len(images)}/50"
+            )
+        else:
+            free_count = (
+                limit_row[0]
+                if limit_row is not None and limit_row[1] == today
+                else 0
+            )
+
+            limit_display = (
+                f"📊 Bugungi foydalanish: {free_count}/5"
+            )
+
         with open(
             pdf_path,
             "rb"
@@ -2187,6 +2230,7 @@ async def make_pdf_from_images(update: Update, context: ContextTypes.DEFAULT_TYP
                 caption=(
                     "✅ PDF tayyor!\n\n"
                     f"🖼️ Rasmlar soni: {len(images)} ta\n"
+                    f"{limit_display}\n"
                     "🤖 Student AI"
                 )
             )
@@ -2517,10 +2561,11 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         and premium_until >= today
     )
 
-    # ⭐ Premium oyini tekshirish
-    current_month = today[:7]
+    # ⭐ Premium 30 kunlik davrini tekshirish
+    # Premium sotib olingan yangi davrda hisoblagich 0 dan boshlanadi.
+    premium_cycle = premium_until if premium_active else today[:7]
 
-    if premium_month != current_month:
+    if premium_active and premium_month != premium_cycle:
         premium_count = 0
 
         cursor.execute(
@@ -2530,7 +2575,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pdf_summary_premium_month = ?
             WHERE user_id = ?
             """,
-            (current_month, user_id)
+            (premium_cycle, user_id)
         )
 
         conn.commit()
@@ -2713,7 +2758,7 @@ async def pdf_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
             (
                 premium_count,
-                current_month,
+                premium_cycle,
                 user_id
             )
         )
@@ -3593,8 +3638,6 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ⭐ PREMIUM AI — 300 / 30 KUN HISOBLAGICHI
     # ============================================================
 
-    current_month = today[:7]
-
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -3608,19 +3651,20 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if premium_row is None:
         premium_ai_count = 0
-        premium_ai_month = current_month
+        premium_ai_cycle = premium_until
     else:
         premium_ai_count = premium_row[0] or 0
-        premium_ai_month = premium_row[1]
+        premium_ai_cycle = premium_row[1]
 
-    # Yangi oy
-    if premium_ai_month != current_month:
+    # ⭐ Yangi Premium davri boshlangan bo'lsa,
+    # hisoblagich yangi 30 kunlik davr uchun 0 dan boshlanadi.
+    if premium_active and premium_ai_cycle != premium_until:
         premium_ai_count = 0
 
         cursor.execute(
             "UPDATE users SET premium_ai_count = 0, "
             "premium_ai_month = ? WHERE user_id = ?",
-            (current_month, user_id)
+            (premium_until, user_id)
         )
 
         conn.commit()
@@ -4338,38 +4382,38 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if lang == "uz":
             await update.message.reply_text(
-                "🧠 Aqlli matematika tayyor!\\n\\n"
-                "Oddiy hisob-kitobdan tortib murakkab matematik masalalargacha yuborishingiz mumkin.\\n\\n"
-                "• Tenglamalar va tengsizliklar\\n"
-                "• Kasrlar, foizlar, darajalar va ildizlar\\n"
-                "• Funksiyalar va matematik formulalar\\n"
-                "• Geometriya va trigonometriya\\n"
-                "• Hosila, integral va murakkab hisoblashlar\\n"
-                "• Bosqichma-bosqich matematik masalalar\\n\\n"
+                "🧠 Aqlli matematika tayyor!\n\n"
+                "Oddiy hisob-kitobdan tortib murakkab matematik masalalargacha yuborishingiz mumkin.\n\n"
+                "• Tenglamalar va tengsizliklar\n"
+                "• Kasrlar, foizlar, darajalar va ildizlar\n"
+                "• Funksiyalar va matematik formulalar\n"
+                "• Geometriya va trigonometriya\n"
+                "• Hosila, integral va murakkab hisoblashlar\n"
+                "• Bosqichma-bosqich matematik masalalar\n\n"
                 "📌 Masalangizni qanday bo‘lsa, shunday yozing — Aqlli matematika uni tushuntirib, yechishga yordam beradi."
             )
         elif lang == "en":
             await update.message.reply_text(
-                "🧠 Smart Math is ready!\\n\\n"
-                "You can send anything from simple calculations to complex mathematics.\\n\\n"
-                "• Equations and inequalities\\n"
-                "• Fractions, percentages, powers and roots\\n"
-                "• Functions and mathematical formulas\\n"
-                "• Geometry and trigonometry\\n"
-                "• Derivatives, integrals and advanced calculations\\n"
-                "• Step-by-step mathematical problems\\n\\n"
+                "🧠 Smart Math is ready!\n\n"
+                "You can send anything from simple calculations to complex mathematics.\n\n"
+                "• Equations and inequalities\n"
+                "• Fractions, percentages, powers and roots\n"
+                "• Functions and mathematical formulas\n"
+                "• Geometry and trigonometry\n"
+                "• Derivatives, integrals and advanced calculations\n"
+                "• Step-by-step mathematical problems\n\n"
                 "📌 Send your problem as it is — Smart Math will help you understand and solve it."
             )
         else:
             await update.message.reply_text(
-                "🧠 Умная математика готова!\\n\\n"
-                "Вы можете отправить всё — от простых вычислений до сложных математических задач.\\n\\n"
-                "• Уравнения и неравенства\\n"
-                "• Дроби, проценты, степени и корни\\n"
-                "• Функции и математические формулы\\n"
-                "• Геометрия и тригонометрия\\n"
-                "• Производные, интегралы и сложные вычисления\\n"
-                "• Пошаговое решение математических задач\\n\\n"
+                "🧠 Умная математика готова!\n\n"
+                "Вы можете отправить всё — от простых вычислений до сложных математических задач.\n\n"
+                "• Уравнения и неравенства\n"
+                "• Дроби, проценты, степени и корни\n"
+                "• Функции и математические формулы\n"
+                "• Геометрия и тригонометрия\n"
+                "• Производные, интегралы и сложные вычисления\n"
+                "• Пошаговое решение математических задач\n\n"
                 "📌 Отправьте задачу как есть — Умная математика поможет понять её и решить."
             )
 
