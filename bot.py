@@ -4709,30 +4709,6 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def admin_stats(update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    import sqlite3
-
-    conn = sqlite3.connect("student_ai.db")
-    cur = conn.cursor()
-
-    cur.execute("SELECT COUNT(*) FROM users")
-    total = cur.fetchone()[0]
-
-    conn.close()
-
-    await update.message.reply_text(
-        f"📊 Student AI statistikasi\\n\\n"
-        f"👥 Jami foydalanuvchilar: {total} ta"
-    )
-
-
-app.add_handler(
-    CommandHandler("stats", admin_stats)
-)
-
 app.add_handler(
     CommandHandler("start", start)
 )
