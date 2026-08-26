@@ -804,7 +804,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 
         if response is None or result is None:
             await update.message.reply_text(
-                "⚠️ Aqlli matematika hozircha javob bera olmayapti.\n\n"
+                "❌ Referat tayyorlashda vaqtinchalik muammo yuz berdi.\n\n"
                 "🔄 Iltimos, birozdan keyin yana urinib ko‘ring."
             )
             return
@@ -819,7 +819,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
                 )
             else:
                 await update.message.reply_text(
-                    f"❌ Gemini xatosi: {response.status_code}"
+                    f"❌ AI vaqtinchalik javob bera olmayapti ({response.status_code})."
                 )
             return
 
@@ -1047,7 +1047,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
 
         if response is None or result is None:
             await update.message.reply_text(
-                "🌐 Tarjimon hozircha javob bera olmayapti.\n\n"
+                "❌ Mustaqil ishni tayyorlashda vaqtinchalik muammo yuz berdi.\n\n"
                 "🔄 Iltimos, birozdan keyin yana urinib ko‘ring."
             )
             return
@@ -1062,7 +1062,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
                 )
             else:
                 await update.message.reply_text(
-                    f"❌ Gemini xatosi: {response.status_code}"
+                    f"❌ AI vaqtinchalik javob bera olmayapti ({response.status_code})."
                 )
             return
 
@@ -1876,7 +1876,7 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print("❌ SMART MATH GEMINI JAVOBIDA CANDIDATES YO'Q:", result)
 
             await update.message.reply_text(
-                "⚠️ Aqlli matematika hozircha javob bera olmayapti.\n\n"
+                "❌ Referat tayyorlashda vaqtinchalik muammo yuz berdi.\n\n"
                 "🔄 AI xizmatining vaqtinchalik limiti to‘lib qolgan.\n"
                 "Iltimos, birozdan keyin yana urinib ko‘ring.\n\n"
                 "💡 Xizmatingiz qayta tiklangach, savolingizga odatdagidek javob beramiz."
