@@ -762,7 +762,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
                 )
 
                 print(
-                    f"🧠 SMART MATH attempt {attempt}/3: "
+                    f"📄 REPORT GEMINI attempt {attempt}/3: "
                     f"{response.status_code}"
                 )
 
@@ -783,7 +783,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 
             except requests.exceptions.Timeout:
                 print(
-                    f"⏱️ SMART MATH TIMEOUT attempt {attempt}/3"
+                    f"⏱️ REPORT TIMEOUT attempt {attempt}/3"
                 )
 
                 if attempt < 3:
@@ -793,7 +793,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 
             except requests.exceptions.RequestException as e:
                 print(
-                    f"🌐 SMART MATH NETWORK ERROR "
+                    f"🌐 REPORT NETWORK ERROR "
                     f"attempt {attempt}/3: {e}"
                 )
 
@@ -1005,7 +1005,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
                 )
 
                 print(
-                    f"🌐 TRANSLATOR GEMINI attempt "
+                    f"📖 INDEPENDENT WORK GEMINI attempt "
                     f"{attempt}/3: {response.status_code}"
                 )
 
@@ -1026,7 +1026,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
 
             except requests.exceptions.Timeout:
                 print(
-                    f"⏱️ TRANSLATOR TIMEOUT attempt {attempt}/3"
+                    f"⏱️ INDEPENDENT WORK TIMEOUT attempt {attempt}/3"
                 )
 
                 if attempt < 3:
@@ -1036,7 +1036,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
 
             except requests.exceptions.RequestException as e:
                 print(
-                    f"🌐 TRANSLATOR NETWORK ERROR "
+                    f"🌐 INDEPENDENT WORK NETWORK ERROR "
                     f"attempt {attempt}/3: {e}"
                 )
 
