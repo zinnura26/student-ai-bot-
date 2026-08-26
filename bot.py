@@ -507,7 +507,7 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
         f'MAVZU:\n{topic}'
     )
 
-    url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent'
+    url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent'
     headers = {
         'x-goog-api-key': GEMINI_WRITING_API_KEY,
         'Content-Type': 'application/json'
@@ -728,7 +728,7 @@ async def report_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
@@ -971,7 +971,7 @@ async def independent_work_generator(update: Update, context: ContextTypes.DEFAU
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
@@ -1357,7 +1357,7 @@ async def programming_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
@@ -1765,7 +1765,7 @@ async def calculator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
@@ -2321,7 +2321,7 @@ def gemini_pdf_request(pdf_path, prompt):
 
         url = (
             "https://generativelanguage.googleapis.com/"
-            "v1beta/models/gemini-3.6-flash:generateContent"
+            "v1beta/models/gemini-3.5-flash-lite:generateContent"
         )
 
         headers = {
@@ -3512,7 +3512,7 @@ async def translator_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
@@ -3788,7 +3788,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = (
         "https://generativelanguage.googleapis.com/"
-        "v1beta/models/gemini-3.6-flash:generateContent"
+        "v1beta/models/gemini-3.5-flash-lite:generateContent"
     )
 
     headers = {
