@@ -4,6 +4,8 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
+from telegram.request import HTTPXRequest
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -614,9 +616,13 @@ async def essay_generator(update: Update, context: ContextTypes.DEFAULT_TYPE, to
         conn.commit()
         conn.close()
 
-        await update.message.reply_text(
-            f'📝 ESSE\n\n{answer}\n\n📊 Bugungi foydalanish: {essay_count + 1}/{daily_limit}'
+        full_text = (
+            f"📝 ESSE\n\n{answer}\n\n"
+            f"📊 Bugungi foydalanish: {essay_count + 1}/{daily_limit}"
         )
+
+        for i in range(0, len(full_text), 4000):
+            await update.message.reply_text(full_text[i:i + 4000])
 
     except Exception as e:
         print('❌ ESSAY ERROR:', e)
@@ -3792,7 +3798,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     headers = {
-        "x-goog-api-key": GEMINI_AI_API_KEY,
+        "x-goog-api-key": GEMINI_API_KEY,
         "Content-Type": "application/json"
     }
 
@@ -3946,7 +3952,15 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ AI bilan bog'lanishda xatolik:\n{e}"
         )
 
-app = Application.builder().token(TOKEN).build()
+request = HTTPXRequest(
+    connect_timeout=30.0,
+    read_timeout=30.0,
+    write_timeout=30.0,
+    pool_timeout=10.0,
+    http_version="1.1",
+)
+
+app = Application.builder().token(TOKEN).request(request).build()
 
 
 async def writing_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
